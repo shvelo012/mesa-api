@@ -98,6 +98,7 @@ const saveLayoutSchema = z.object({
       minCapacity: z.number().int().min(1).default(1),
       isWindowSeat: z.boolean().default(false),
       notes: z.string().nullish(),
+      imageUrl: z.string().nullish(),
     })
   ),
   walls: z.array(
@@ -132,15 +133,20 @@ export async function saveLayout(req: AuthRequest, res: Response) {
   }
 
   const { tables, walls } = parsed.data;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const stripBadId = <T extends { id?: string }>(o: T): Omit<T, "id"> & { id?: string } => {
+    const { id, ...rest } = o;
+    return id && UUID_RE.test(id) ? { ...rest, id } : rest;
+  };
 
   await TableModel.destroy({ where: { floorId: floor.id } });
   await Wall.destroy({ where: { floorId: floor.id } });
 
   const createdTables = await TableModel.bulkCreate(
-    tables.map((t) => ({ ...t, floorId: floor.id }))
+    tables.map((t) => ({ ...stripBadId(t), floorId: floor.id }))
   );
   const createdWalls = await Wall.bulkCreate(
-    walls.map((w) => ({ ...w, floorId: floor.id }))
+    walls.map((w) => ({ ...stripBadId(w), floorId: floor.id }))
   );
 
   res.json({ tables: createdTables, walls: createdWalls });

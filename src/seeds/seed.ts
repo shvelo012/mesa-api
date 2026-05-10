@@ -99,6 +99,19 @@ async function seed() {
     { x1: 400, y1: 0,   x2: 400, y2: 200, floorId: indoorFloor.id },
   ]);
 
+  // ── table photos (Unsplash) ────────────────────────────
+  const PHOTO = {
+    window2:  "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=720&q=70",
+    window4:  "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=720&q=70",
+    round:    "https://images.unsplash.com/photo-1559329007-40df8a9345d8?w=720&q=70",
+    long:     "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=720&q=70",
+    bar:      "https://images.unsplash.com/photo-1572116469696-31de0f17cc34?w=720&q=70",
+    private:  "https://images.unsplash.com/photo-1559339352-11d035aa65de?w=720&q=70",
+    outdoor2: "https://images.unsplash.com/photo-1466978913421-dad2ebd01d17?w=720&q=70",
+    outdoor4: "https://images.unsplash.com/photo-1485872299712-0c89cdc8c4d2?w=720&q=70",
+    outdoor6: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=720&q=70",
+  };
+
   // ── indoor tables ──────────────────────────────────────
   const indoorTables = await TableModel.bulkCreate([
     {
@@ -107,6 +120,7 @@ async function seed() {
       rotation: 0, capacity: 4, minCapacity: 1,
       isWindowSeat: true, isActive: true,
       notes: "Overlooks the street",
+      imageUrl: PHOTO.window4,
       floorId: indoorFloor.id,
     },
     {
@@ -114,6 +128,7 @@ async function seed() {
       x: 200, y: 60,  width: 100, height: 70,
       rotation: 0, capacity: 4, minCapacity: 1,
       isWindowSeat: true, isActive: true,
+      imageUrl: PHOTO.window4,
       floorId: indoorFloor.id,
     },
     {
@@ -121,6 +136,7 @@ async function seed() {
       x: 50,  y: 220, width: 90,  height: 90,
       rotation: 0, capacity: 3, minCapacity: 1,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.round,
       floorId: indoorFloor.id,
     },
     {
@@ -128,6 +144,7 @@ async function seed() {
       x: 200, y: 220, width: 90,  height: 90,
       rotation: 0, capacity: 3, minCapacity: 1,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.round,
       floorId: indoorFloor.id,
     },
     {
@@ -135,6 +152,7 @@ async function seed() {
       x: 50,  y: 380, width: 120, height: 80,
       rotation: 0, capacity: 6, minCapacity: 2,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.long,
       floorId: indoorFloor.id,
     },
     {
@@ -142,6 +160,7 @@ async function seed() {
       x: 220, y: 380, width: 120, height: 80,
       rotation: 0, capacity: 6, minCapacity: 2,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.long,
       floorId: indoorFloor.id,
     },
     // right side (bar area)
@@ -151,6 +170,7 @@ async function seed() {
       rotation: 0, capacity: 2, minCapacity: 1,
       isWindowSeat: false, isActive: true,
       notes: "Bar counter seat",
+      imageUrl: PHOTO.bar,
       floorId: indoorFloor.id,
     },
     {
@@ -159,6 +179,7 @@ async function seed() {
       rotation: 0, capacity: 2, minCapacity: 1,
       isWindowSeat: false, isActive: true,
       notes: "Bar counter seat",
+      imageUrl: PHOTO.bar,
       floorId: indoorFloor.id,
     },
     {
@@ -167,6 +188,7 @@ async function seed() {
       rotation: 0, capacity: 10, minCapacity: 6,
       isWindowSeat: false, isActive: true,
       notes: "Private dining room — large group",
+      imageUrl: PHOTO.private,
       floorId: indoorFloor.id,
     },
   ]);
@@ -187,6 +209,7 @@ async function seed() {
       rotation: 0, capacity: 2, minCapacity: 1,
       isWindowSeat: false, isActive: true,
       notes: "Umbrella table",
+      imageUrl: PHOTO.outdoor2,
       floorId: outdoorFloor.id,
     },
     {
@@ -195,6 +218,7 @@ async function seed() {
       rotation: 0, capacity: 2, minCapacity: 1,
       isWindowSeat: false, isActive: true,
       notes: "Umbrella table",
+      imageUrl: PHOTO.outdoor2,
       floorId: outdoorFloor.id,
     },
     {
@@ -203,6 +227,7 @@ async function seed() {
       rotation: 0, capacity: 2, minCapacity: 1,
       isWindowSeat: false, isActive: true,
       notes: "Umbrella table",
+      imageUrl: PHOTO.outdoor2,
       floorId: outdoorFloor.id,
     },
     {
@@ -210,6 +235,7 @@ async function seed() {
       x: 60,  y: 230, width: 110, height: 75,
       rotation: 0, capacity: 4, minCapacity: 2,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.outdoor4,
       floorId: outdoorFloor.id,
     },
     {
@@ -217,6 +243,7 @@ async function seed() {
       x: 230, y: 230, width: 110, height: 75,
       rotation: 0, capacity: 4, minCapacity: 2,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.outdoor4,
       floorId: outdoorFloor.id,
     },
     {
@@ -224,6 +251,7 @@ async function seed() {
       x: 400, y: 230, width: 110, height: 75,
       rotation: 0, capacity: 4, minCapacity: 2,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.outdoor4,
       floorId: outdoorFloor.id,
     },
     {
@@ -231,6 +259,7 @@ async function seed() {
       x: 60,  y: 380, width: 160, height: 80,
       rotation: 0, capacity: 6, minCapacity: 3,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.outdoor6,
       floorId: outdoorFloor.id,
     },
     {
@@ -238,6 +267,7 @@ async function seed() {
       x: 300, y: 380, width: 160, height: 80,
       rotation: 0, capacity: 6, minCapacity: 3,
       isWindowSeat: false, isActive: true,
+      imageUrl: PHOTO.outdoor6,
       floorId: outdoorFloor.id,
     },
   ]);

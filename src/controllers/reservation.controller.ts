@@ -7,6 +7,13 @@ import { Floor } from "../models/Floor";
 import { Restaurant } from "../models/Restaurant";
 import { User } from "../models/User";
 import { AuthRequest } from "../middleware/auth";
+import {
+  sendMail,
+  pendingGuestEmail,
+  pendingOwnerEmail,
+  confirmedGuestEmail,
+  rejectedGuestEmail,
+} from "../lib/mailer";
 
 const createSchema = z.object({
   tableId: z.string(),
@@ -76,6 +83,57 @@ export async function createReservation(req: AuthRequest, res: Response) {
     guestPhone: req.user ? null : (guestPhone ?? null),
     status: ReservationStatus.PENDING,
   });
+
+  try {
+    const tableWithCtx = await TableModel.findByPk(tableId, {
+      include: [{ model: Floor, include: [Restaurant] }],
+    });
+    const restaurant = tableWithCtx?.floor?.restaurant;
+    if (restaurant) {
+      let recipientName = "Guest";
+      let recipientEmail: string | null = null;
+      let recipientPhone = "";
+      if (req.user) {
+        const u = await User.findByPk(req.user.userId);
+        recipientName = u?.name || "Guest";
+        recipientEmail = u?.email || null;
+        recipientPhone = u?.phone || "";
+      } else {
+        recipientName = guestName || "Guest";
+        recipientEmail = guestEmail || null;
+        recipientPhone = guestPhone || "";
+      }
+
+      const ctx = {
+        guestName: recipientName,
+        restaurantName: restaurant.name,
+        tableLabel: tableWithCtx.label,
+        date,
+        startTime,
+        endTime,
+        partySize,
+      };
+
+      if (recipientEmail) {
+        await sendMail({
+          to: recipientEmail,
+          subject: `Reservation request received — ${restaurant.name}`,
+          html: pendingGuestEmail(ctx),
+        });
+      }
+      if (restaurant.email) {
+        const contact = [recipientEmail, recipientPhone].filter(Boolean).join(" · ");
+        await sendMail({
+          to: restaurant.email,
+          subject: `New reservation request — Table ${tableWithCtx.label}`,
+          html: pendingOwnerEmail({ ...ctx, contact }),
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[reservation:create] notify failed:", err);
+  }
+
   res.status(201).json(reservation);
 }
 
@@ -141,12 +199,48 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
   }
 
   const reservation = await Reservation.findByPk(req.params.id, {
-    include: [{ model: TableModel, include: [{ model: Floor, where: { restaurantId: restaurant.id } }] }],
+    include: [
+      { model: TableModel, include: [{ model: Floor, where: { restaurantId: restaurant.id } }] },
+      { model: User, attributes: ["id", "name", "email"] },
+    ],
   });
   if (!reservation) {
     res.status(404).json({ error: "Reservation not found" });
     return;
   }
+  const previousStatus = reservation.status;
   await reservation.update({ status });
+
+  try {
+    const recipientEmail = reservation.user?.email || reservation.guestEmail;
+    const recipientName = reservation.user?.name || reservation.guestName || "Guest";
+    if (recipientEmail && status !== previousStatus) {
+      const ctx = {
+        guestName: recipientName,
+        restaurantName: restaurant.name,
+        tableLabel: reservation.table?.label || "",
+        date: reservation.date,
+        startTime: reservation.startTime,
+        endTime: reservation.endTime,
+        partySize: reservation.partySize,
+      };
+      if (status === ReservationStatus.CONFIRMED) {
+        await sendMail({
+          to: recipientEmail,
+          subject: `Reservation confirmed — ${restaurant.name}`,
+          html: confirmedGuestEmail(ctx),
+        });
+      } else if (status === ReservationStatus.CANCELLED) {
+        await sendMail({
+          to: recipientEmail,
+          subject: `Reservation declined — ${restaurant.name}`,
+          html: rejectedGuestEmail(ctx),
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[reservation:status] notify failed:", err);
+  }
+
   res.json(reservation);
 }

@@ -70,6 +70,9 @@ export class TableModel extends Model {
   @Column(DataType.TEXT)
   declare notes: string | null;
 
+  @Column(DataType.TEXT)
+  declare imageUrl: string | null;
+
   @ForeignKey(() => Floor)
   @Column(DataType.UUID)
   declare floorId: string;
