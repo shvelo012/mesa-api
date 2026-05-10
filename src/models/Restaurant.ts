@@ -22,6 +22,10 @@ export class Restaurant extends Model {
   @Column(DataType.UUID)
   declare id: string;
 
+  @Unique
+  @Column(DataType.STRING)
+  declare slug: string;
+
   @Column(DataType.STRING)
   declare name: string;
 

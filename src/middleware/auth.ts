@@ -21,6 +21,18 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   }
 }
 
+export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (header?.startsWith("Bearer ")) {
+    try {
+      req.user = verifyAccess(header.slice(7));
+    } catch {
+      // invalid token — treat as guest
+    }
+  }
+  next();
+}
+
 export function requireRole(...roles: Role[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role as Role)) {

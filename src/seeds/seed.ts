@@ -55,6 +55,7 @@ async function seed() {
   // ── restaurant ─────────────────────────────────────────
   const restaurant = await Restaurant.create({
     name: "La Bella Vita",
+    slug: "la-bella-vita",
     description: "Authentic Italian cuisine in the heart of the city.",
     address: "123 Via Roma, Downtown",
     phone: "+1-555-0199",

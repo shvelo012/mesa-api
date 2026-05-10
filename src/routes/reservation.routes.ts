@@ -6,12 +6,12 @@ import {
   getRestaurantReservations,
   updateReservationStatus,
 } from "../controllers/reservation.controller";
-import { authenticate, requireRole } from "../middleware/auth";
+import { authenticate, optionalAuth, requireRole } from "../middleware/auth";
 import { Role } from "../models/User";
 
 const router = Router();
 
-router.post("/", authenticate, requireRole(Role.USER), createReservation);
+router.post("/", optionalAuth, createReservation);
 router.get("/my", authenticate, requireRole(Role.USER), getUserReservations);
 router.patch("/:id/cancel", authenticate, requireRole(Role.USER), cancelReservation);
 

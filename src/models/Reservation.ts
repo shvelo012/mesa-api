@@ -7,6 +7,7 @@ import {
   ForeignKey,
   PrimaryKey,
   Default,
+  AllowNull,
   CreatedAt,
   UpdatedAt,
 } from "sequelize-typescript";
@@ -47,9 +48,22 @@ export class Reservation extends Model {
   @Column(DataType.TEXT)
   declare notes: string | null;
 
+  @AllowNull(true)
+  @Column(DataType.STRING)
+  declare guestName: string | null;
+
+  @AllowNull(true)
+  @Column(DataType.STRING)
+  declare guestEmail: string | null;
+
+  @AllowNull(true)
+  @Column(DataType.STRING)
+  declare guestPhone: string | null;
+
+  @AllowNull(true)
   @ForeignKey(() => User)
   @Column(DataType.UUID)
-  declare userId: string;
+  declare userId: string | null;
 
   @BelongsTo(() => User)
   declare user: User;

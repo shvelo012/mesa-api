@@ -15,6 +15,9 @@ const createSchema = z.object({
   endTime: z.string(),
   partySize: z.number().int().min(1),
   notes: z.string().optional(),
+  guestName: z.string().min(1).optional(),
+  guestEmail: z.string().email().optional(),
+  guestPhone: z.string().optional(),
 });
 
 export async function createReservation(req: AuthRequest, res: Response) {
@@ -23,7 +26,12 @@ export async function createReservation(req: AuthRequest, res: Response) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { tableId, date, startTime, endTime, partySize, notes } = parsed.data;
+  const { tableId, date, startTime, endTime, partySize, notes, guestName, guestEmail, guestPhone } = parsed.data;
+
+  if (!req.user && (!guestName || !guestEmail)) {
+    res.status(400).json({ error: "Name and email are required for guest reservations" });
+    return;
+  }
 
   const table = await TableModel.findByPk(tableId);
   if (!table || !table.isActive) {
@@ -62,7 +70,10 @@ export async function createReservation(req: AuthRequest, res: Response) {
     endTime,
     partySize,
     notes,
-    userId: req.user!.userId,
+    userId: req.user?.userId ?? null,
+    guestName: req.user ? null : (guestName ?? null),
+    guestEmail: req.user ? null : (guestEmail ?? null),
+    guestPhone: req.user ? null : (guestPhone ?? null),
     status: ReservationStatus.PENDING,
   });
   res.status(201).json(reservation);
