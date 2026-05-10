@@ -97,7 +97,7 @@ const saveLayoutSchema = z.object({
       capacity: z.number().int().min(1),
       minCapacity: z.number().int().min(1).default(1),
       isWindowSeat: z.boolean().default(false),
-      notes: z.string().optional(),
+      notes: z.string().nullish(),
     })
   ),
   walls: z.array(
