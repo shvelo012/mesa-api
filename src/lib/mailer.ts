@@ -15,23 +15,43 @@ function getTransporter(): Transporter | null {
   return transporter;
 }
 
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+}
+
 export interface MailInput {
   to: string;
   subject: string;
   html: string;
   text?: string;
+  from?: string;
+  replyTo?: string;
+  smtpConfig?: SmtpConfig;
 }
 
-export async function sendMail({ to, subject, html, text }: MailInput): Promise<void> {
-  const t = getTransporter();
-  const from = process.env.SMTP_FROM || "Mesa Reservations <no-reply@mesa.local>";
+export async function sendMail({ to, subject, html, text, from: fromOverride, replyTo, smtpConfig }: MailInput): Promise<void> {
+  let t: Transporter | null;
+  if (smtpConfig) {
+    t = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.port === 465,
+      auth: { user: smtpConfig.user, pass: smtpConfig.pass },
+    });
+  } else {
+    t = getTransporter();
+  }
+  const from = fromOverride || process.env.SMTP_FROM || "Mesa Reservations <no-reply@mesa.local>";
   if (!t) {
-    console.log("[mail:dev]", { to, from, subject });
+    console.log("[mail:dev]", { to, from, replyTo, subject });
     console.log(text || html.replace(/<[^>]+>/g, ""));
     return;
   }
   try {
-    await t.sendMail({ from, to, subject, html, text: text || html.replace(/<[^>]+>/g, "") });
+    await t.sendMail({ from, to, replyTo, subject, html, text: text || html.replace(/<[^>]+>/g, "") });
   } catch (err) {
     console.error("[mail] send failed:", err);
   }

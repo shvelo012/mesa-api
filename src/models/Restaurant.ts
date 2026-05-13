@@ -42,6 +42,21 @@ export class Restaurant extends Model {
   declare email: string;
 
   @Column(DataType.STRING)
+  declare notificationEmail: string | null;
+
+  @Column(DataType.STRING)
+  declare smtpHost: string | null;
+
+  @Column(DataType.INTEGER)
+  declare smtpPort: number | null;
+
+  @Column(DataType.STRING)
+  declare smtpUser: string | null;
+
+  @Column(DataType.STRING)
+  declare smtpPass: string | null;
+
+  @Column(DataType.STRING)
   declare cuisine: string | null;
 
   @Column(DataType.STRING)

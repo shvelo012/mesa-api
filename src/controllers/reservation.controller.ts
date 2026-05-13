@@ -13,7 +13,15 @@ import {
   pendingOwnerEmail,
   confirmedGuestEmail,
   rejectedGuestEmail,
+  SmtpConfig,
 } from "../lib/mailer";
+
+function restaurantSmtp(restaurant: { smtpHost?: string | null; smtpPort?: number | null; smtpUser?: string | null; smtpPass?: string | null }): SmtpConfig | undefined {
+  if (restaurant.smtpHost && restaurant.smtpUser && restaurant.smtpPass) {
+    return { host: restaurant.smtpHost, port: restaurant.smtpPort || 587, user: restaurant.smtpUser, pass: restaurant.smtpPass };
+  }
+  return undefined;
+}
 
 const createSchema = z.object({
   tableId: z.string(),
@@ -114,19 +122,26 @@ export async function createReservation(req: AuthRequest, res: Response) {
         partySize,
       };
 
+      const smtp = restaurantSmtp(restaurant);
       if (recipientEmail) {
         await sendMail({
           to: recipientEmail,
           subject: `Reservation request received — ${restaurant.name}`,
           html: pendingGuestEmail(ctx),
+          from: smtp ? (restaurant.email || undefined) : undefined,
+          replyTo: smtp ? undefined : (restaurant.email || undefined),
+          smtpConfig: smtp,
         });
       }
-      if (restaurant.email) {
+      const ownerAlertEmail = restaurant.notificationEmail || restaurant.email;
+      if (ownerAlertEmail) {
         const contact = [recipientEmail, recipientPhone].filter(Boolean).join(" · ");
         await sendMail({
-          to: restaurant.email,
+          to: ownerAlertEmail,
           subject: `New reservation request — Table ${tableWithCtx.label}`,
           html: pendingOwnerEmail({ ...ctx, contact }),
+          from: smtp ? (restaurant.email || undefined) : undefined,
+          smtpConfig: smtp,
         });
       }
     }
@@ -224,17 +239,24 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
         endTime: reservation.endTime,
         partySize: reservation.partySize,
       };
+      const smtp = restaurantSmtp(restaurant);
       if (status === ReservationStatus.CONFIRMED) {
         await sendMail({
           to: recipientEmail,
           subject: `Reservation confirmed — ${restaurant.name}`,
           html: confirmedGuestEmail(ctx),
+          from: smtp ? (restaurant.email || undefined) : undefined,
+          replyTo: smtp ? undefined : (restaurant.email || undefined),
+          smtpConfig: smtp,
         });
       } else if (status === ReservationStatus.CANCELLED) {
         await sendMail({
           to: recipientEmail,
           subject: `Reservation declined — ${restaurant.name}`,
           html: rejectedGuestEmail(ctx),
+          from: smtp ? (restaurant.email || undefined) : undefined,
+          replyTo: smtp ? undefined : (restaurant.email || undefined),
+          smtpConfig: smtp,
         });
       }
     }

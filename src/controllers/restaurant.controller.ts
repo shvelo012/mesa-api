@@ -25,15 +25,30 @@ async function uniqueSlug(base: string): Promise<string> {
   return `${base}-${i}`;
 }
 
+function sanitize(restaurant: Restaurant) {
+  const json = restaurant.toJSON() as Record<string, unknown>;
+  json.smtpConfigured = !!(json.smtpHost && json.smtpUser && json.smtpPass);
+  delete json.smtpPass;
+  return json;
+}
+
 const createSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   address: z.string().min(1),
   phone: z.string().min(1),
   email: z.string().email(),
+  notificationEmail: z.string().email().optional().nullable(),
   cuisine: z.string().optional(),
   openTime: z.string(),
   closeTime: z.string(),
+});
+
+const updateSchema = createSchema.partial().extend({
+  smtpHost: z.string().min(1).optional().nullable(),
+  smtpPort: z.number().int().min(1).max(65535).optional().nullable(),
+  smtpUser: z.string().min(1).optional().nullable(),
+  smtpPass: z.string().min(1).optional().nullable(),
 });
 
 export async function createRestaurant(req: AuthRequest, res: Response) {
@@ -55,7 +70,7 @@ export async function createRestaurant(req: AuthRequest, res: Response) {
     slug,
     ownerId: req.user!.userId,
   });
-  res.status(201).json(restaurant);
+  res.status(201).json(sanitize(restaurant));
 }
 
 export async function getMyRestaurant(req: AuthRequest, res: Response) {
@@ -67,7 +82,7 @@ export async function getMyRestaurant(req: AuthRequest, res: Response) {
     res.status(404).json({ error: "No restaurant found" });
     return;
   }
-  res.json(restaurant);
+  res.json(sanitize(restaurant));
 }
 
 export async function updateRestaurant(req: AuthRequest, res: Response) {
@@ -76,13 +91,20 @@ export async function updateRestaurant(req: AuthRequest, res: Response) {
     res.status(404).json({ error: "No restaurant found" });
     return;
   }
-  const parsed = createSchema.partial().safeParse(req.body);
+  const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  await restaurant.update(parsed.data);
-  res.json(restaurant);
+
+  const updates = { ...parsed.data };
+  // Don't wipe existing password if not provided in this request
+  if (!("smtpPass" in req.body)) {
+    delete updates.smtpPass;
+  }
+
+  await restaurant.update(updates);
+  res.json(sanitize(restaurant));
 }
 
 export async function listRestaurants(_req: AuthRequest, res: Response) {
