@@ -78,9 +78,9 @@ export async function createReservation(req: AuthRequest, res: Response) {
     partySize,
     notes,
     userId: req.user?.userId ?? null,
-    guestName: req.user ? null : (guestName ?? null),
-    guestEmail: req.user ? null : (guestEmail ?? null),
-    guestPhone: req.user ? null : (guestPhone ?? null),
+    guestName: guestName ?? null,
+    guestEmail: guestEmail ?? null,
+    guestPhone: guestPhone ?? null,
     status: ReservationStatus.PENDING,
   });
 
@@ -95,9 +95,9 @@ export async function createReservation(req: AuthRequest, res: Response) {
       let recipientPhone = "";
       if (req.user) {
         const u = await User.findByPk(req.user.userId);
-        recipientName = u?.name || "Guest";
-        recipientEmail = u?.email || null;
-        recipientPhone = u?.phone || "";
+        recipientName = guestName || u?.name || "Guest";
+        recipientEmail = guestEmail || u?.email || null;
+        recipientPhone = guestPhone || u?.phone || "";
       } else {
         recipientName = guestName || "Guest";
         recipientEmail = guestEmail || null;
