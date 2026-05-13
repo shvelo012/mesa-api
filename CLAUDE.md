@@ -5,10 +5,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev       # tsx watch — http://localhost:4000
-npm run build     # tsc → dist/
-npm start         # node dist/index.js
-npm run db:seed   # wipe DB and reseed with demo data
+npm run dev              # tsx watch — http://localhost:4000
+npm run build            # tsc → dist/
+npm start                # node dist/index.js
+npm run db:migrate       # run pending migrations
+npm run db:migrate:undo  # revert last migration
+npm run db:migrate:status # show migration state
+npm run db:seed          # wipe DB and reseed with demo data
 ```
 
 No test runner configured.
@@ -17,7 +20,7 @@ No test runner configured.
 
 Request flow: `src/index.ts` → `src/routes/*.routes.ts` → `src/controllers/*.controller.ts` → Sequelize models in `src/models/`.
 
-**Database:** `sequelize.sync({ alter: true })` runs on startup — schema changes in models apply automatically on restart. No migration files. For new NOT NULL columns on tables with existing data, write a one-off SQL backfill after the sync.
+**Database:** Uses `sequelize-cli` migrations in `migrations/`. Connection configured via individual env vars (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`). Startup only calls `authenticate()` — no `sync()`. Schema changes require a new migration file. Run `npm run db:migrate` before first start and after each new migration.
 
 **Auth middleware** (`src/middleware/auth.ts`) — three options, pick per route:
 - `authenticate` — hard require, 401 if missing/invalid

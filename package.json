@@ -5,7 +5,12 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:seed": "tsx src/seeds/seed.ts"
+    "db:migrate": "sequelize-cli db:migrate",
+    "db:migrate:undo": "sequelize-cli db:migrate:undo",
+    "db:migrate:undo:all": "sequelize-cli db:migrate:undo:all",
+    "db:migrate:status": "sequelize-cli db:migrate:status",
+    "db:seed": "tsx src/seeds/seed.ts",
+    "db:fresh": "sequelize-cli db:migrate:undo:all && sequelize-cli db:migrate && tsx src/seeds/seed.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -28,6 +33,7 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.11.25",
     "@types/nodemailer": "^8.0.0",
+    "sequelize-cli": "^6.6.5",
     "tsx": "^4.7.1",
     "typescript": "^5.4.2"
   }
