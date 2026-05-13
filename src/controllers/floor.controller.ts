@@ -97,6 +97,7 @@ const saveLayoutSchema = z.object({
       capacity: z.number().int().min(1),
       minCapacity: z.number().int().min(1).default(1),
       isWindowSeat: z.boolean().default(false),
+      isActive: z.boolean().default(true),
       notes: z.string().nullish(),
       imageUrl: z.string().nullish(),
     })
