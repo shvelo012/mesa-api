@@ -380,6 +380,29 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
   const previousStatus = reservation.status;
   await reservation.update({ status });
 
+  // Auto-decline overlapping pending reservations when confirming
+  let autoDeclined: Reservation[] = [];
+  if (status === ReservationStatus.CONFIRMED && previousStatus !== ReservationStatus.CONFIRMED) {
+    const overlapping = await Reservation.findAll({
+      where: {
+        id: { [Op.ne]: reservation.id },
+        tableId: reservation.tableId,
+        date: reservation.date,
+        status: ReservationStatus.PENDING,
+        [Op.or]: [
+          { startTime: { [Op.between]: [reservation.startTime, reservation.endTime] } },
+          { endTime: { [Op.between]: [reservation.startTime, reservation.endTime] } },
+          { startTime: { [Op.lte]: reservation.startTime }, endTime: { [Op.gte]: reservation.endTime } },
+        ],
+      },
+      include: [{ model: User, attributes: ["id", "name", "email"] }],
+    });
+    for (const other of overlapping) {
+      await other.update({ status: ReservationStatus.CANCELLED });
+    }
+    autoDeclined = overlapping;
+  }
+
   try {
     const recipientEmail = reservation.user?.email || reservation.guestEmail;
     const recipientName = reservation.user?.name || reservation.guestName || "Guest";
@@ -406,6 +429,32 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
       } else if (status === ReservationStatus.CANCELLED) {
         await sendMail({
           to: recipientEmail,
+          subject: `Reservation declined — ${restaurant.name}`,
+          html: rejectedGuestEmail(ctx),
+          from: smtp ? (restaurant.email || undefined) : undefined,
+          replyTo: smtp ? undefined : (restaurant.email || undefined),
+          smtpConfig: smtp,
+        });
+      }
+    }
+
+    // Notify auto-declined guests
+    for (const other of autoDeclined) {
+      const otherEmail = other.user?.email || other.guestEmail;
+      const otherName = other.user?.name || other.guestName || "Guest";
+      if (otherEmail) {
+        const ctx = {
+          guestName: otherName,
+          restaurantName: restaurant.name,
+          tableLabel: reservation.table?.label || "",
+          date: other.date,
+          startTime: other.startTime,
+          endTime: other.endTime,
+          partySize: other.partySize,
+        };
+        const smtp = restaurantSmtp(restaurant);
+        await sendMail({
+          to: otherEmail,
           subject: `Reservation declined — ${restaurant.name}`,
           html: rejectedGuestEmail(ctx),
           from: smtp ? (restaurant.email || undefined) : undefined,
