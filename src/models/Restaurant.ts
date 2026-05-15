@@ -15,6 +15,7 @@ import {
 import { User } from "./User";
 import { Floor } from "./Floor";
 import { Menu } from "./Menu";
+import { RestaurantStaff } from "./RestaurantStaff";
 
 @Table({ tableName: "restaurants" })
 export class Restaurant extends Model {
@@ -79,6 +80,9 @@ export class Restaurant extends Model {
 
   @HasMany(() => Menu, { onDelete: "CASCADE" })
   declare menus: Menu[];
+
+  @HasMany(() => RestaurantStaff)
+  declare staff: RestaurantStaff[];
 
   @CreatedAt
   declare createdAt: Date;

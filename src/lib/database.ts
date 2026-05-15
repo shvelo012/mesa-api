@@ -10,6 +10,7 @@ import { Menu } from "../models/Menu";
 import { MenuPhoto } from "../models/MenuPhoto";
 import { MenuGroup } from "../models/MenuGroup";
 import { MenuItem } from "../models/MenuItem";
+import { RestaurantStaff } from "../models/RestaurantStaff";
 
 export const sequelize = new Sequelize({
   dialect: "postgres",
@@ -19,10 +20,11 @@ export const sequelize = new Sequelize({
   username: process.env.DB_USER!,
   password: process.env.DB_PASSWORD!,
   logging: process.env.NODE_ENV === "development" ? console.log : false,
-  models: [User, Restaurant, Floor, TableModel, Wall, Reservation, Menu, MenuPhoto, MenuGroup, MenuItem],
+  models: [User, Restaurant, Floor, TableModel, Wall, Reservation, Menu, MenuPhoto, MenuGroup, MenuItem, RestaurantStaff],
 });
 
 export async function connectDB() {
   await sequelize.authenticate();
+  await sequelize.sync({ alter: true });
   console.log("Database connected.");
 }

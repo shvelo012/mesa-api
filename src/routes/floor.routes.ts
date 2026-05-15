@@ -6,15 +6,14 @@ import {
   deleteFloor,
   saveLayout,
 } from "../controllers/floor.controller";
-import { authenticate, optionalAuth, requireRole } from "../middleware/auth";
-import { Role } from "../models/User";
+import { authenticate, optionalAuth } from "../middleware/auth";
 
 const router = Router();
 
 router.get("/:id", optionalAuth, getFloor);
-router.post("/", authenticate, requireRole(Role.RESTAURANT_OWNER), createFloor);
-router.put("/:id", authenticate, requireRole(Role.RESTAURANT_OWNER), updateFloor);
-router.delete("/:id", authenticate, requireRole(Role.RESTAURANT_OWNER), deleteFloor);
-router.post("/:id/layout", authenticate, requireRole(Role.RESTAURANT_OWNER), saveLayout);
+router.post("/", authenticate, createFloor);
+router.put("/:id", authenticate, updateFloor);
+router.delete("/:id", authenticate, deleteFloor);
+router.post("/:id/layout", authenticate, saveLayout);
 
 export default router;

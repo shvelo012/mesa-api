@@ -14,12 +14,11 @@ import {
   deleteItem,
   getPublicMenus,
 } from "../controllers/menu.controller";
-import { authenticate, requireRole } from "../middleware/auth";
-import { Role } from "../models/User";
+import { authenticate } from "../middleware/auth";
 import { upload } from "../lib/storage";
 
 const router = Router();
-const owner = [authenticate, requireRole(Role.RESTAURANT_OWNER)];
+const owner = [authenticate];
 
 router.get("/public/:restaurantIdOrSlug", getPublicMenus);
 router.get("/restaurant", ...owner, getRestaurantMenus);

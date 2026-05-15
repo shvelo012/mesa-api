@@ -17,9 +17,9 @@ router.post("/", optionalAuth, createReservation);
 router.get("/my", authenticate, requireRole(Role.USER), getUserReservations);
 router.patch("/:id/cancel", authenticate, requireRole(Role.USER), cancelReservation);
 
-router.get("/restaurant", authenticate, requireRole(Role.RESTAURANT_OWNER), getRestaurantReservations);
-router.get("/availability", authenticate, requireRole(Role.RESTAURANT_OWNER), getAvailability);
-router.post("/manual", authenticate, requireRole(Role.RESTAURANT_OWNER), createManualReservation);
-router.patch("/:id/status", authenticate, requireRole(Role.RESTAURANT_OWNER), updateReservationStatus);
+router.get("/restaurant", authenticate, getRestaurantReservations);
+router.get("/availability", authenticate, getAvailability);
+router.post("/manual", authenticate, createManualReservation);
+router.patch("/:id/status", authenticate, updateReservationStatus);
 
 export default router;

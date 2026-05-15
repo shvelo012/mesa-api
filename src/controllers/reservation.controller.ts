@@ -6,7 +6,8 @@ import { TableModel } from "../models/Table";
 import { Floor } from "../models/Floor";
 import { Restaurant } from "../models/Restaurant";
 import { User } from "../models/User";
-import { AuthRequest } from "../middleware/auth";
+import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
+import { Permission } from "../models/RestaurantStaff";
 import {
   sendMail,
   pendingGuestEmail,
@@ -178,9 +179,14 @@ export async function cancelReservation(req: AuthRequest, res: Response) {
 }
 
 export async function getRestaurantReservations(req: AuthRequest, res: Response) {
-  const restaurant = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.RESERVATIONS_READ)) {
+    res.status(403).json({ error: "Missing permission" });
     return;
   }
 
@@ -201,9 +207,14 @@ export async function getRestaurantReservations(req: AuthRequest, res: Response)
 }
 
 export async function getAvailability(req: AuthRequest, res: Response) {
-  const restaurant = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.RESERVATIONS_READ)) {
+    res.status(403).json({ error: "Missing permission" });
     return;
   }
 
@@ -304,9 +315,14 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
   }
   const { tableId, date, startTime, endTime, partySize, notes, guestName, guestPhone, guestEmail } = parsed.data;
 
-  const restaurant = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.RESERVATIONS_WRITE)) {
+    res.status(403).json({ error: "Missing permission" });
     return;
   }
 
@@ -355,9 +371,14 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
 }
 
 export async function updateReservationStatus(req: AuthRequest, res: Response) {
-  const restaurant = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.RESERVATIONS_WRITE)) {
+    res.status(403).json({ error: "Missing permission" });
     return;
   }
 

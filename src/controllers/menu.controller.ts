@@ -5,14 +5,11 @@ import { Menu, MenuType, LayoutStyle } from "../models/Menu";
 import { MenuPhoto } from "../models/MenuPhoto";
 import { MenuGroup } from "../models/MenuGroup";
 import { MenuItem } from "../models/MenuItem";
-import { AuthRequest } from "../middleware/auth";
+import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
+import { Permission } from "../models/RestaurantStaff";
 import { saveFile, deleteFile } from "../lib/storage";
 
 const DIETARY_TAGS = ["vegan", "vegetarian", "gluten-free", "dairy-free", "spicy", "nuts"] as const;
-
-async function ownerRestaurant(userId: string) {
-  return Restaurant.findOne({ where: { ownerId: userId } });
-}
 
 async function ownerMenu(menuId: string, restaurantId: string) {
   return Menu.findOne({ where: { id: menuId, restaurantId } });
@@ -20,8 +17,10 @@ async function ownerMenu(menuId: string, restaurantId: string) {
 
 // GET /api/menus/restaurant
 export async function getRestaurantMenus(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menus = await Menu.findAll({
     where: { restaurantId: restaurant.id },
@@ -46,8 +45,10 @@ const createMenuSchema = z.object({
 });
 
 export async function createMenu(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const parsed = createMenuSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.flatten() }); return; }
@@ -78,8 +79,10 @@ const updateMenuSchema = z.object({
 });
 
 export async function updateMenu(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }
@@ -93,8 +96,10 @@ export async function updateMenu(req: AuthRequest, res: Response) {
 
 // DELETE /api/menus/:id
 export async function deleteMenu(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await Menu.findOne({
     where: { id: req.params.id, restaurantId: restaurant.id },
@@ -110,8 +115,10 @@ export async function deleteMenu(req: AuthRequest, res: Response) {
 
 // POST /api/menus/:id/photos  (multipart, field name "photos")
 export async function uploadPhotos(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }
@@ -129,8 +136,10 @@ export async function uploadPhotos(req: AuthRequest, res: Response) {
 
 // DELETE /api/menus/:id/photos/:photoId
 export async function deletePhoto(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }
@@ -145,8 +154,10 @@ export async function deletePhoto(req: AuthRequest, res: Response) {
 
 // POST /api/menus/:id/groups
 export async function createGroup(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }
@@ -161,8 +172,10 @@ export async function createGroup(req: AuthRequest, res: Response) {
 
 // PUT /api/menus/:id/groups/:groupId
 export async function updateGroup(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }
@@ -179,8 +192,10 @@ export async function updateGroup(req: AuthRequest, res: Response) {
 
 // DELETE /api/menus/:id/groups/:groupId
 export async function deleteGroup(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }
@@ -202,8 +217,10 @@ const itemSchema = z.object({
 
 // POST /api/menus/:id/groups/:groupId/items
 export async function createItem(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }
@@ -221,8 +238,10 @@ export async function createItem(req: AuthRequest, res: Response) {
 
 // PUT /api/menus/:id/groups/:groupId/items/:itemId
 export async function updateItem(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }
@@ -242,8 +261,10 @@ export async function updateItem(req: AuthRequest, res: Response) {
 
 // DELETE /api/menus/:id/groups/:groupId/items/:itemId
 export async function deleteItem(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) { res.status(404).json({ error: "No restaurant found" }); return; }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.MENU_MANAGE)) { res.status(403).json({ error: "Missing permission" }); return; }
 
   const menu = await ownerMenu(req.params.id, restaurant.id);
   if (!menu) { res.status(404).json({ error: "Menu not found" }); return; }

@@ -1,10 +1,10 @@
 import { Response } from "express";
 import { z } from "zod";
-import { Restaurant } from "../models/Restaurant";
 import { Floor, SectionType } from "../models/Floor";
 import { TableModel } from "../models/Table";
 import { Wall } from "../models/Wall";
-import { AuthRequest } from "../middleware/auth";
+import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
+import { Permission } from "../models/RestaurantStaff";
 
 const floorSchema = z.object({
   name: z.string().min(1),
@@ -14,14 +14,15 @@ const floorSchema = z.object({
   bgColor: z.string().default("#f5f5f0"),
 });
 
-async function ownerRestaurant(userId: string) {
-  return Restaurant.findOne({ where: { ownerId: userId } });
-}
-
 export async function createFloor(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.FLOOR_PLAN)) {
+    res.status(403).json({ error: "Missing permission" });
     return;
   }
   const parsed = floorSchema.safeParse(req.body);
@@ -45,9 +46,14 @@ export async function getFloor(req: AuthRequest, res: Response) {
 }
 
 export async function updateFloor(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.FLOOR_PLAN)) {
+    res.status(403).json({ error: "Missing permission" });
     return;
   }
   const floor = await Floor.findOne({
@@ -67,9 +73,14 @@ export async function updateFloor(req: AuthRequest, res: Response) {
 }
 
 export async function deleteFloor(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.FLOOR_PLAN)) {
+    res.status(403).json({ error: "Missing permission" });
     return;
   }
   const floor = await Floor.findOne({
@@ -114,9 +125,14 @@ const saveLayoutSchema = z.object({
 });
 
 export async function saveLayout(req: AuthRequest, res: Response) {
-  const restaurant = await ownerRestaurant(req.user!.userId);
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.FLOOR_PLAN)) {
+    res.status(403).json({ error: "Missing permission" });
     return;
   }
   const floor = await Floor.findOne({

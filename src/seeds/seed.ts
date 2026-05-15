@@ -11,6 +11,7 @@ import { Reservation, ReservationStatus } from "../models/Reservation";
 import { Menu, MenuType, LayoutStyle } from "../models/Menu";
 import { MenuGroup } from "../models/MenuGroup";
 import { MenuItem } from "../models/MenuItem";
+import { RestaurantStaff, StaffRole, ROLE_PERMISSIONS } from "../models/RestaurantStaff";
 
 async function seed() {
   await connectDB();
@@ -73,6 +74,60 @@ async function seed() {
   });
 
   console.log("Restaurant created.");
+
+  // ── staff users ────────────────────────────────────────
+  const staffUsers = await User.bulkCreate([
+    {
+      email: "manager@example.com",
+      password: ownerPassword,
+      name: "Sofia Manager",
+      phone: "+1-555-0301",
+      role: Role.USER,
+    },
+    {
+      email: "host@example.com",
+      password: ownerPassword,
+      name: "Luca Host",
+      phone: "+1-555-0302",
+      role: Role.USER,
+    },
+    {
+      email: "waiter@example.com",
+      password: ownerPassword,
+      name: "Elena Waiter",
+      phone: "+1-555-0303",
+      role: Role.USER,
+    },
+  ]);
+
+  await RestaurantStaff.bulkCreate([
+    {
+      userId: staffUsers[0].id,
+      restaurantId: restaurant.id,
+      role: StaffRole.MANAGER,
+      permissions: ROLE_PERMISSIONS[StaffRole.MANAGER],
+      isActive: true,
+      invitedBy: owner.id,
+    },
+    {
+      userId: staffUsers[1].id,
+      restaurantId: restaurant.id,
+      role: StaffRole.HOST,
+      permissions: ROLE_PERMISSIONS[StaffRole.HOST],
+      isActive: true,
+      invitedBy: owner.id,
+    },
+    {
+      userId: staffUsers[2].id,
+      restaurantId: restaurant.id,
+      role: StaffRole.WAITER,
+      permissions: ROLE_PERMISSIONS[StaffRole.WAITER],
+      isActive: true,
+      invitedBy: owner.id,
+    },
+  ]);
+
+  console.log("Staff members created.");
 
   // ── floors ─────────────────────────────────────────────
   const indoorFloor = await Floor.create({
@@ -444,9 +499,12 @@ async function seed() {
 
   console.log("Menus created.");
   console.log("\n✓ Seed complete.");
-  console.log("  owner@example.com  / password123  (RESTAURANT_OWNER)");
-  console.log("  alice@example.com  / password123  (USER)");
-  console.log("  bob@example.com    / password123  (USER)");
+  console.log("  owner@example.com   / password123  (RESTAURANT_OWNER)");
+  console.log("  alice@example.com   / password123  (USER)");
+  console.log("  bob@example.com     / password123  (USER)");
+  console.log("  manager@example.com / password123  (MANAGER)");
+  console.log("  host@example.com    / password123  (HOST)");
+  console.log("  waiter@example.com  / password123  (WAITER)");
 
   await sequelize.close();
 }

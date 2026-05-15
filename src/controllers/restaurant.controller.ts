@@ -3,7 +3,8 @@ import { z } from "zod";
 import { Op } from "sequelize";
 import { Restaurant } from "../models/Restaurant";
 import { Floor } from "../models/Floor";
-import { AuthRequest } from "../middleware/auth";
+import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
+import { Permission } from "../models/RestaurantStaff";
 
 function toSlug(name: string) {
   return name
@@ -74,10 +75,7 @@ export async function createRestaurant(req: AuthRequest, res: Response) {
 }
 
 export async function getMyRestaurant(req: AuthRequest, res: Response) {
-  const restaurant = await Restaurant.findOne({
-    where: { ownerId: req.user!.userId },
-    include: [Floor],
-  });
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
     return;
@@ -85,12 +83,58 @@ export async function getMyRestaurant(req: AuthRequest, res: Response) {
   res.json(sanitize(restaurant));
 }
 
+export async function getMyRestaurants(req: AuthRequest, res: Response) {
+  const owned = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
+  const staffRestaurants = await Restaurant.findAll({
+    include: [
+      {
+        model: Floor,
+        required: false,
+      },
+    ],
+    where: {
+      id: {
+        [Op.in]: (
+          await Restaurant.findAll({
+            include: [
+              {
+                association: "staff",
+                required: true,
+                where: { userId: req.user!.userId, isActive: true },
+              },
+            ],
+          })
+        ).map((r) => r.id),
+      },
+    },
+  });
+
+  const all = [];
+  if (owned) {
+    const perms = Object.values(Permission);
+    all.push({ ...sanitize(owned), isOwner: true, permissions: perms });
+  }
+  for (const r of staffRestaurants) {
+    if (owned && r.id === owned.id) continue;
+    const perms = await getUserPermissions(req.user!.userId, r.id);
+    all.push({ ...sanitize(r), isOwner: false, permissions: perms });
+  }
+
+  res.json(all);
+}
+
 export async function updateRestaurant(req: AuthRequest, res: Response) {
-  const restaurant = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
+  const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
     res.status(404).json({ error: "No restaurant found" });
     return;
   }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.SETTINGS_WRITE)) {
+    res.status(403).json({ error: "Missing permission" });
+    return;
+  }
+
   const parsed = updateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
