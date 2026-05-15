@@ -333,6 +333,40 @@ async function seed() {
       userId: user1.id,
       tableId: indoorTables[8].id,
     },
+    // ── overlapping pending reservations for testing ──
+    {
+      date: today,
+      startTime: "18:00",
+      endTime: "20:00",
+      partySize: 2,
+      status: ReservationStatus.PENDING,
+      notes: "Date night",
+      userId: user1.id,
+      tableId: indoorTables[0].id,
+    },
+    {
+      date: today,
+      startTime: "19:00",
+      endTime: "21:00",
+      partySize: 3,
+      status: ReservationStatus.PENDING,
+      notes: "Friends reunion",
+      userId: user2.id,
+      tableId: indoorTables[0].id,
+    },
+    {
+      date: today,
+      startTime: "19:30",
+      endTime: "21:30",
+      partySize: 2,
+      status: ReservationStatus.PENDING,
+      notes: "Walk-in request",
+      guestName: "Charlie Davis",
+      guestEmail: "charlie@example.com",
+      guestPhone: "+1-555-0303",
+      userId: null,
+      tableId: indoorTables[0].id,
+    },
   ]);
 
   console.log("Reservations created.");
