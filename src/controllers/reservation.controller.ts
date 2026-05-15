@@ -200,6 +200,135 @@ export async function getRestaurantReservations(req: AuthRequest, res: Response)
   res.json(reservations);
 }
 
+export async function getAvailability(req: AuthRequest, res: Response) {
+  const restaurant = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
+  if (!restaurant) {
+    res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+
+  const { date, startTime, endTime } = req.query as Record<string, string>;
+  if (!date || !startTime || !endTime) {
+    res.status(400).json({ error: "date, startTime, endTime required" });
+    return;
+  }
+
+  const floors = await Floor.findAll({
+    where: { restaurantId: restaurant.id },
+    include: [TableModel],
+    order: [["createdAt", "ASC"]],
+  });
+
+  const allTableIds = floors.flatMap((f) => (f.tables || []).map((t) => t.id));
+
+  const occupied = allTableIds.length
+    ? await Reservation.findAll({
+        where: {
+          tableId: { [Op.in]: allTableIds },
+          date,
+          status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
+          [Op.or]: [
+            { startTime: { [Op.between]: [startTime, endTime] } },
+            { endTime: { [Op.between]: [startTime, endTime] } },
+            { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
+          ],
+        },
+        attributes: ["tableId"],
+      })
+    : [];
+
+  const occupiedIds = new Set(occupied.map((r) => r.tableId));
+
+  res.json({
+    floors: floors.map((floor) => ({
+      id: floor.id,
+      name: floor.name,
+      sectionType: floor.sectionType,
+      tables: (floor.tables || [])
+        .filter((t) => t.isActive)
+        .map((t) => ({
+          id: t.id,
+          label: t.label,
+          capacity: t.capacity,
+          minCapacity: t.minCapacity,
+          isWindowSeat: t.isWindowSeat,
+          shape: t.shape,
+          available: !occupiedIds.has(t.id),
+        })),
+    })),
+  });
+}
+
+const manualCreateSchema = z.object({
+  tableId: z.string(),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string(),
+  endTime: z.string(),
+  partySize: z.number().int().min(1),
+  notes: z.string().optional(),
+  guestName: z.string().min(1),
+  guestPhone: z.string().optional(),
+  guestEmail: z.string().email().optional(),
+});
+
+export async function createManualReservation(req: AuthRequest, res: Response) {
+  const parsed = manualCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { tableId, date, startTime, endTime, partySize, notes, guestName, guestPhone, guestEmail } = parsed.data;
+
+  const restaurant = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
+  if (!restaurant) {
+    res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+
+  const table = await TableModel.findByPk(tableId, { include: [Floor] });
+  if (!table || !table.isActive || table.floor?.restaurantId !== restaurant.id) {
+    res.status(404).json({ error: "Table not found or inactive" });
+    return;
+  }
+  if (partySize > table.capacity || partySize < table.minCapacity) {
+    res.status(400).json({ error: `Party size must be between ${table.minCapacity} and ${table.capacity}` });
+    return;
+  }
+
+  const conflict = await Reservation.findOne({
+    where: {
+      tableId,
+      date,
+      status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
+      [Op.or]: [
+        { startTime: { [Op.between]: [startTime, endTime] } },
+        { endTime: { [Op.between]: [startTime, endTime] } },
+        { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
+      ],
+    },
+  });
+  if (conflict) {
+    res.status(409).json({ error: "Table already booked for this time" });
+    return;
+  }
+
+  const reservation = await Reservation.create({
+    tableId,
+    date,
+    startTime,
+    endTime,
+    partySize,
+    notes: notes ?? null,
+    userId: null,
+    guestName,
+    guestEmail: guestEmail ?? null,
+    guestPhone: guestPhone ?? null,
+    status: ReservationStatus.CONFIRMED,
+  });
+
+  res.status(201).json(reservation);
+}
+
 export async function updateReservationStatus(req: AuthRequest, res: Response) {
   const restaurant = await Restaurant.findOne({ where: { ownerId: req.user!.userId } });
   if (!restaurant) {
