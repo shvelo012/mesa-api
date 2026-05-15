@@ -490,3 +490,70 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
 
   res.json(reservation);
 }
+
+export async function getReservationReport(req: AuthRequest, res: Response) {
+  const restaurant = await getRestaurantForUser(req.user!.userId);
+  if (!restaurant) {
+    res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.REPORTS)) {
+    res.status(403).json({ error: "Missing permission" });
+    return;
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const sevenDaysFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
+
+  const allReservations = await Reservation.findAll({
+    where: {
+      date: { [Op.gte]: today },
+    },
+    include: [
+      { model: TableModel, include: [{ model: Floor, where: { restaurantId: restaurant.id } }] },
+      { model: User, attributes: ["id", "name", "email"] },
+    ],
+    order: [["date", "ASC"], ["startTime", "ASC"]],
+  });
+
+  const stats = {
+    total: allReservations.length,
+    pending: 0,
+    confirmed: 0,
+    cancelled: 0,
+    completed: 0,
+    noShow: 0,
+  };
+
+  const daily: Record<string, { total: number; confirmed: number; pending: number; cancelled: number }> = {};
+
+  for (const r of allReservations) {
+    if (r.status === ReservationStatus.PENDING) stats.pending++;
+    else if (r.status === ReservationStatus.CONFIRMED) stats.confirmed++;
+    else if (r.status === ReservationStatus.CANCELLED) stats.cancelled++;
+    else if (r.status === ReservationStatus.COMPLETED) stats.completed++;
+    else if (r.status === ReservationStatus.NO_SHOW) stats.noShow++;
+
+    const d = r.date;
+    if (!daily[d]) daily[d] = { total: 0, confirmed: 0, pending: 0, cancelled: 0 };
+    daily[d].total++;
+    if (r.status === ReservationStatus.CONFIRMED) daily[d].confirmed++;
+    if (r.status === ReservationStatus.PENDING) daily[d].pending++;
+    if (r.status === ReservationStatus.CANCELLED) daily[d].cancelled++;
+  }
+
+  const upcoming = allReservations.filter((r) => r.date <= sevenDaysFromNow).map((r) => ({
+    id: r.id,
+    date: r.date,
+    startTime: r.startTime,
+    endTime: r.endTime,
+    partySize: r.partySize,
+    status: r.status,
+    guestName: r.user?.name || r.guestName || "Guest",
+    guestEmail: r.user?.email || r.guestEmail || null,
+    tableLabel: r.table?.label || null,
+  }));
+
+  res.json({ stats, daily, upcoming });
+}

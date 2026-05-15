@@ -61,7 +61,8 @@ export async function inviteStaff(req: AuthRequest, res: Response) {
   const { email, name, role, permissions } = parsed.data;
 
   // Prevent inviting the owner
-  if (restaurant.ownerId === email) {
+  const owner = await User.findByPk(restaurant.ownerId);
+  if (owner && owner.email === email) {
     res.status(400).json({ error: "Cannot invite the owner" });
     return;
   }

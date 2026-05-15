@@ -7,6 +7,7 @@ import {
   updateReservationStatus,
   getAvailability,
   createManualReservation,
+  getReservationReport,
 } from "../controllers/reservation.controller";
 import { authenticate, optionalAuth, requireRole } from "../middleware/auth";
 import { Role } from "../models/User";
@@ -19,6 +20,7 @@ router.patch("/:id/cancel", authenticate, requireRole(Role.USER), cancelReservat
 
 router.get("/restaurant", authenticate, getRestaurantReservations);
 router.get("/availability", authenticate, getAvailability);
+router.get("/report", authenticate, getReservationReport);
 router.post("/manual", authenticate, createManualReservation);
 router.patch("/:id/status", authenticate, updateReservationStatus);
 

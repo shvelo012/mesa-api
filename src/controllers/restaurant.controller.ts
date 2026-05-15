@@ -1,8 +1,10 @@
-import { Response } from "express";
+import { Response, Request } from "express";
 import { z } from "zod";
 import { Op } from "sequelize";
 import { Restaurant } from "../models/Restaurant";
 import { Floor } from "../models/Floor";
+import { TableModel } from "../models/Table";
+import { Reservation, ReservationStatus } from "../models/Reservation";
 import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
 import { Permission } from "../models/RestaurantStaff";
 
@@ -169,4 +171,86 @@ export async function getRestaurantById(req: AuthRequest, res: Response) {
     return;
   }
   res.json(restaurant);
+}
+
+export async function getPublicAvailability(req: Request, res: Response) {
+  const { idOrSlug } = req.params;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+  const restaurant = isUuid
+    ? await Restaurant.findByPk(idOrSlug, { include: [{ model: Floor, include: [TableModel] }] })
+    : await Restaurant.findOne({ where: { slug: idOrSlug }, include: [{ model: Floor, include: [TableModel] }] });
+  if (!restaurant) {
+    res.status(404).json({ error: "Restaurant not found" });
+    return;
+  }
+
+  const { date, startTime, endTime } = req.query as Record<string, string | undefined>;
+  if (!date) {
+    res.status(400).json({ error: "date required" });
+    return;
+  }
+
+  const allTableIds = (restaurant.floors || []).flatMap((f) => (f.tables || []).map((t) => t.id).filter(Boolean));
+
+  // Occupied tables for the requested time window
+  let occupiedIds = new Set<string>();
+  if (startTime && endTime && allTableIds.length) {
+    const occupied = await Reservation.findAll({
+      where: {
+        tableId: { [Op.in]: allTableIds },
+        date,
+        status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
+        [Op.or]: [
+          { startTime: { [Op.between]: [startTime, endTime] } },
+          { endTime: { [Op.between]: [startTime, endTime] } },
+          { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
+        ],
+      },
+      attributes: ["tableId"],
+    });
+    occupiedIds = new Set(occupied.map((r) => r.tableId));
+  }
+
+  // All reservations for the date (for tooltip bookings list)
+  const allReservations = allTableIds.length
+    ? await Reservation.findAll({
+        where: {
+          tableId: { [Op.in]: allTableIds },
+          date,
+          status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
+        },
+        attributes: ["tableId", "startTime", "endTime"],
+        order: [["startTime", "ASC"]],
+      })
+    : [];
+
+  const bookingsByTable: Record<string, { startTime: string; endTime: string }[]> = {};
+  for (const r of allReservations) {
+    const tid = r.getDataValue("tableId") as string;
+    if (!bookingsByTable[tid]) bookingsByTable[tid] = [];
+    bookingsByTable[tid].push({
+      startTime: r.getDataValue("startTime") as string,
+      endTime: r.getDataValue("endTime") as string,
+    });
+  }
+
+  res.json({
+    floors: (restaurant.floors || []).map((floor) => ({
+      id: floor.id,
+      name: floor.name,
+      sectionType: floor.sectionType,
+      tables: (floor.tables || [])
+        .filter((t) => t.isActive)
+        .map((t) => ({
+          id: t.id,
+          label: t.label,
+          capacity: t.capacity,
+          minCapacity: t.minCapacity,
+          isWindowSeat: t.isWindowSeat,
+          shape: t.shape,
+          available: !occupiedIds.has(t.id),
+          bookings: bookingsByTable[t.id] || [],
+        })),
+    })),
+  });
 }
