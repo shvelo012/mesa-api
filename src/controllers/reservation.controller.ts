@@ -207,9 +207,9 @@ export async function getAvailability(req: AuthRequest, res: Response) {
     return;
   }
 
-  const { date, startTime, endTime } = req.query as Record<string, string>;
-  if (!date || !startTime || !endTime) {
-    res.status(400).json({ error: "date, startTime, endTime required" });
+  const { date, startTime, endTime } = req.query as Record<string, string | undefined>;
+  if (!date) {
+    res.status(400).json({ error: "date required" });
     return;
   }
 
@@ -221,23 +221,47 @@ export async function getAvailability(req: AuthRequest, res: Response) {
 
   const allTableIds = floors.flatMap((f) => (f.tables || []).map((t) => t.id));
 
-  const occupied = allTableIds.length
+  // Only compute occupied tables when time window is provided
+  let occupiedIds = new Set<string>();
+  if (startTime && endTime && allTableIds.length) {
+    const occupied = await Reservation.findAll({
+      where: {
+        tableId: { [Op.in]: allTableIds },
+        date,
+        status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
+        [Op.or]: [
+          { startTime: { [Op.between]: [startTime, endTime] } },
+          { endTime: { [Op.between]: [startTime, endTime] } },
+          { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
+        ],
+      },
+      attributes: ["tableId"],
+    });
+    occupiedIds = new Set(occupied.map((r) => r.tableId));
+  }
+
+  // Fetch all reservations for the date to show booking times per table
+  const allReservations = allTableIds.length
     ? await Reservation.findAll({
         where: {
           tableId: { [Op.in]: allTableIds },
           date,
           status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-          [Op.or]: [
-            { startTime: { [Op.between]: [startTime, endTime] } },
-            { endTime: { [Op.between]: [startTime, endTime] } },
-            { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
-          ],
         },
-        attributes: ["tableId"],
+        attributes: ["tableId", "startTime", "endTime"],
+        order: [["startTime", "ASC"]],
       })
     : [];
 
-  const occupiedIds = new Set(occupied.map((r) => r.tableId));
+  const bookingsByTable: Record<string, { startTime: string; endTime: string }[]> = {};
+  for (const r of allReservations) {
+    const tid = r.getDataValue("tableId") as string;
+    if (!bookingsByTable[tid]) bookingsByTable[tid] = [];
+    bookingsByTable[tid].push({
+      startTime: r.getDataValue("startTime") as string,
+      endTime: r.getDataValue("endTime") as string,
+    });
+  }
 
   res.json({
     floors: floors.map((floor) => ({
@@ -254,6 +278,7 @@ export async function getAvailability(req: AuthRequest, res: Response) {
           isWindowSeat: t.isWindowSeat,
           shape: t.shape,
           available: !occupiedIds.has(t.id),
+          bookings: bookingsByTable[t.id] || [],
         })),
     })),
   });
