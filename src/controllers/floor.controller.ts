@@ -5,6 +5,7 @@ import { TableModel } from "../models/Table";
 import { Wall } from "../models/Wall";
 import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
 import { Permission } from "../models/RestaurantStaff";
+import { sequelize } from "../lib/database";
 
 const floorSchema = z.object({
   name: z.string().min(1),
@@ -12,6 +13,34 @@ const floorSchema = z.object({
   width: z.number().default(800),
   height: z.number().default(600),
   bgColor: z.string().default("#f5f5f0"),
+});
+
+const createFloorSchema = floorSchema.extend({
+  tables: z.array(
+    z.object({
+      label: z.string(),
+      shape: z.enum(["RECTANGLE", "CIRCLE", "SQUARE"]),
+      x: z.number(),
+      y: z.number(),
+      width: z.number(),
+      height: z.number(),
+      rotation: z.number().default(0),
+      capacity: z.number().int().min(1),
+      minCapacity: z.number().int().min(1).default(1),
+      isWindowSeat: z.boolean().default(false),
+      isActive: z.boolean().default(true),
+      notes: z.string().nullish(),
+      imageUrl: z.string().nullish(),
+    })
+  ).optional(),
+  walls: z.array(
+    z.object({
+      x1: z.number(),
+      y1: z.number(),
+      x2: z.number(),
+      y2: z.number(),
+    })
+  ).optional(),
 });
 
 export async function createFloor(req: AuthRequest, res: Response) {
@@ -25,12 +54,28 @@ export async function createFloor(req: AuthRequest, res: Response) {
     res.status(403).json({ error: "Missing permission" });
     return;
   }
-  const parsed = floorSchema.safeParse(req.body);
+  const parsed = createFloorSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const floor = await Floor.create({ ...parsed.data, restaurantId: restaurant.id });
+  const { tables, walls, ...rest } = parsed.data;
+  const floor = await sequelize.transaction(async (transaction) => {
+    const created = await Floor.create({ ...rest, restaurantId: restaurant.id }, { transaction });
+    if (tables && tables.length) {
+      await TableModel.bulkCreate(
+        tables.map((t) => ({ ...t, floorId: created.id })),
+        { transaction }
+      );
+    }
+    if (walls && walls.length) {
+      await Wall.bulkCreate(
+        walls.map((w) => ({ ...w, floorId: created.id })),
+        { transaction }
+      );
+    }
+    return created;
+  });
   res.status(201).json(floor);
 }
 

@@ -6,7 +6,7 @@ import { Floor } from "../models/Floor";
 import { TableModel } from "../models/Table";
 import { Reservation, ReservationStatus } from "../models/Reservation";
 import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
-import { Permission } from "../models/RestaurantStaff";
+import { Permission, RestaurantStaff } from "../models/RestaurantStaff";
 
 function toSlug(name: string) {
   return name
@@ -77,12 +77,28 @@ export async function createRestaurant(req: AuthRequest, res: Response) {
 }
 
 export async function getMyRestaurant(req: AuthRequest, res: Response) {
-  const restaurant = await getRestaurantForUser(req.user!.userId);
-  if (!restaurant) {
-    res.status(404).json({ error: "No restaurant found" });
+  const restaurant = await Restaurant.findOne({
+    where: { ownerId: req.user!.userId },
+    include: [Floor],
+  });
+  if (restaurant) {
+    res.json(sanitize(restaurant));
     return;
   }
-  res.json(sanitize(restaurant));
+  const staffRecord = await RestaurantStaff.findOne({
+    where: { userId: req.user!.userId, isActive: true },
+    include: [
+      {
+        model: Restaurant,
+        include: [Floor],
+      },
+    ],
+  });
+  if (staffRecord?.restaurant) {
+    res.json(sanitize(staffRecord.restaurant));
+    return;
+  }
+  res.status(404).json({ error: "No restaurant found" });
 }
 
 export async function getMyRestaurants(req: AuthRequest, res: Response) {
