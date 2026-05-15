@@ -2,11 +2,13 @@ import "reflect-metadata";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import path from "path";
 import { connectDB } from "./lib/database";
 import authRoutes from "./routes/auth.routes";
 import restaurantRoutes from "./routes/restaurant.routes";
 import floorRoutes from "./routes/floor.routes";
 import reservationRoutes from "./routes/reservation.routes";
+import menuRoutes from "./routes/menu.routes";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -14,10 +16,15 @@ const PORT = process.env.PORT || 4000;
 app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:3000" }));
 app.use(express.json());
 
+if (!process.env.STORAGE_DRIVER || process.env.STORAGE_DRIVER === "local") {
+  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+}
+
 app.use("/api/auth", authRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/floors", floorRoutes);
 app.use("/api/reservations", reservationRoutes);
+app.use("/api/menus", menuRoutes);
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 

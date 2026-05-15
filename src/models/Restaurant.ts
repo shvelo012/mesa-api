@@ -14,6 +14,7 @@ import {
 } from "sequelize-typescript";
 import { User } from "./User";
 import { Floor } from "./Floor";
+import { Menu } from "./Menu";
 
 @Table({ tableName: "restaurants" })
 export class Restaurant extends Model {
@@ -75,6 +76,9 @@ export class Restaurant extends Model {
 
   @HasMany(() => Floor)
   declare floors: Floor[];
+
+  @HasMany(() => Menu, { onDelete: "CASCADE" })
+  declare menus: Menu[];
 
   @CreatedAt
   declare createdAt: Date;

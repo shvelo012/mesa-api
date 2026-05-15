@@ -8,6 +8,9 @@ import { Floor, SectionType } from "../models/Floor";
 import { TableModel, TableShape } from "../models/Table";
 import { Wall } from "../models/Wall";
 import { Reservation, ReservationStatus } from "../models/Reservation";
+import { Menu, MenuType, LayoutStyle } from "../models/Menu";
+import { MenuGroup } from "../models/MenuGroup";
+import { MenuItem } from "../models/MenuItem";
 
 async function seed() {
   await connectDB();
@@ -17,6 +20,9 @@ async function seed() {
   await Wall.destroy({ where: {} });
   await TableModel.destroy({ where: {} });
   await Floor.destroy({ where: {} });
+  await MenuItem.destroy({ where: {} });
+  await MenuGroup.destroy({ where: {} });
+  await Menu.destroy({ where: {} });
   await Restaurant.destroy({ where: {} });
   await User.destroy({ where: {} });
 
@@ -330,6 +336,79 @@ async function seed() {
   ]);
 
   console.log("Reservations created.");
+
+  // ── menus ──────────────────────────────────────────────
+  const dinnerMenu = await Menu.create({
+    restaurantId: restaurant.id,
+    name: "Dinner Menu",
+    type: MenuType.STRUCTURED,
+    layoutStyle: LayoutStyle.CARD_GRID,
+    order: 0,
+  });
+
+  const [starters, pasta, mains, desserts] = await MenuGroup.bulkCreate([
+    { menuId: dinnerMenu.id, name: "Starters",  order: 0 },
+    { menuId: dinnerMenu.id, name: "Pasta",     order: 1 },
+    { menuId: dinnerMenu.id, name: "Mains",     order: 2 },
+    { menuId: dinnerMenu.id, name: "Desserts",  order: 3 },
+  ]);
+
+  await MenuItem.bulkCreate([
+    // Starters
+    { groupId: starters.id, name: "Bruschetta al Pomodoro",   price: 9.50,  description: "Toasted bread with fresh tomatoes, basil and extra-virgin olive oil.", dietaryTags: ["vegan"], order: 0 },
+    { groupId: starters.id, name: "Burrata con Prosciutto",   price: 14.00, description: "Creamy burrata, San Daniele prosciutto, cherry tomatoes.", dietaryTags: [], order: 1 },
+    { groupId: starters.id, name: "Zuppa di Funghi",          price: 11.00, description: "Wild mushroom soup with truffle oil and sourdough croutons.", dietaryTags: ["vegetarian", "gluten-free"], order: 2 },
+    { groupId: starters.id, name: "Calamari Fritti",          price: 13.50, description: "Crispy fried calamari with lemon aioli and marinara sauce.", dietaryTags: [], order: 3 },
+    // Pasta
+    { groupId: pasta.id, name: "Tagliatelle al Ragù",         price: 18.00, description: "Hand-rolled tagliatelle with slow-cooked Bolognese ragù.", dietaryTags: [], order: 0 },
+    { groupId: pasta.id, name: "Pappardelle ai Funghi Porcini", price: 19.50, description: "Wide pasta ribbons with porcini mushrooms, thyme and Parmigiano.", dietaryTags: ["vegetarian"], order: 1 },
+    { groupId: pasta.id, name: "Spaghetti alle Vongole",      price: 21.00, description: "Spaghetti with Manila clams, white wine, garlic and chilli.", dietaryTags: ["dairy-free"], order: 2 },
+    { groupId: pasta.id, name: "Risotto al Limone",           price: 17.50, description: "Carnaroli risotto with Amalfi lemon, Parmigiano and fresh herbs.", dietaryTags: ["vegetarian", "gluten-free"], order: 3 },
+    // Mains
+    { groupId: mains.id, name: "Branzino al Forno",           price: 28.00, description: "Whole roasted sea bass with capers, olives and roasted potatoes.", dietaryTags: ["gluten-free", "dairy-free"], order: 0 },
+    { groupId: mains.id, name: "Costolette d'Agnello",        price: 32.00, description: "Rack of lamb with rosemary jus, grilled vegetables and polenta.", dietaryTags: ["gluten-free"], order: 1 },
+    { groupId: mains.id, name: "Pollo alla Milanese",         price: 24.00, description: "Breaded chicken breast with rocket, cherry tomatoes and lemon.", dietaryTags: [], order: 2 },
+    { groupId: mains.id, name: "Melanzane alla Parmigiana",   price: 19.00, description: "Baked aubergine with San Marzano tomato, mozzarella and basil.", dietaryTags: ["vegetarian", "gluten-free"], order: 3 },
+    // Desserts
+    { groupId: desserts.id, name: "Tiramisù Classico",        price: 9.00,  description: "House-made tiramisù with mascarpone and savoiardi biscuits.", dietaryTags: [], order: 0 },
+    { groupId: desserts.id, name: "Panna Cotta alla Vaniglia", price: 8.50, description: "Set vanilla cream with seasonal berry compote.", dietaryTags: ["vegetarian", "gluten-free"], order: 1 },
+    { groupId: desserts.id, name: "Tortino al Cioccolato",    price: 10.00, description: "Warm dark chocolate fondant with pistachio gelato.", dietaryTags: ["vegetarian", "nuts"], order: 2 },
+    { groupId: desserts.id, name: "Sorbetto al Limone",       price: 7.50,  description: "Amalfi lemon sorbet served in the shell.", dietaryTags: ["vegan", "gluten-free", "dairy-free"], order: 3 },
+  ]);
+
+  const drinksMenu = await Menu.create({
+    restaurantId: restaurant.id,
+    name: "Drinks Menu",
+    type: MenuType.STRUCTURED,
+    layoutStyle: LayoutStyle.TWO_COLUMN,
+    order: 1,
+  });
+
+  const [wines, cocktails, softDrinks] = await MenuGroup.bulkCreate([
+    { menuId: drinksMenu.id, name: "Wine",        order: 0 },
+    { menuId: drinksMenu.id, name: "Cocktails",   order: 1 },
+    { menuId: drinksMenu.id, name: "Soft Drinks", order: 2 },
+  ]);
+
+  await MenuItem.bulkCreate([
+    // Wine
+    { groupId: wines.id, name: "Barolo DOCG — Piedmont",       price: 14.00, description: "Full-bodied red, notes of cherry and leather. Glass.", dietaryTags: ["vegan"], order: 0 },
+    { groupId: wines.id, name: "Chianti Classico Riserva",     price: 12.00, description: "Tuscan red, medium body, dried fruit finish. Glass.", dietaryTags: ["vegan"], order: 1 },
+    { groupId: wines.id, name: "Pinot Grigio delle Venezie",   price: 10.00, description: "Crisp white, citrus and pear. Glass.", dietaryTags: ["vegan"], order: 2 },
+    { groupId: wines.id, name: "Prosecco DOC Extra Dry",       price: 9.50,  description: "Fine bubbles, apple blossom, delicate sweetness. Glass.", dietaryTags: ["vegan"], order: 3 },
+    // Cocktails
+    { groupId: cocktails.id, name: "Aperol Spritz",            price: 11.00, description: "Aperol, Prosecco, soda, fresh orange slice.", dietaryTags: [], order: 0 },
+    { groupId: cocktails.id, name: "Negroni",                  price: 13.00, description: "Gin, Campari, sweet vermouth, orange peel.", dietaryTags: [], order: 1 },
+    { groupId: cocktails.id, name: "Hugo",                     price: 10.00, description: "Elderflower cordial, Prosecco, fresh mint, lime.", dietaryTags: [], order: 2 },
+    { groupId: cocktails.id, name: "Limoncello Sour",          price: 12.00, description: "Limoncello, lemon juice, egg white, Angostura bitters.", dietaryTags: [], order: 3 },
+    // Soft Drinks
+    { groupId: softDrinks.id, name: "San Pellegrino",          price: 4.00,  description: "Sparkling mineral water 750ml.", dietaryTags: ["vegan"], order: 0 },
+    { groupId: softDrinks.id, name: "Acqua Panna",             price: 4.00,  description: "Still mineral water 750ml.", dietaryTags: ["vegan"], order: 1 },
+    { groupId: softDrinks.id, name: "Limonata Artigianale",    price: 5.50,  description: "House-made lemonade with fresh mint.", dietaryTags: ["vegan", "gluten-free"], order: 2 },
+    { groupId: softDrinks.id, name: "Caffè Espresso",          price: 3.50,  description: "Single or double shot Italian espresso.", dietaryTags: ["vegan", "gluten-free", "dairy-free"], order: 3 },
+  ]);
+
+  console.log("Menus created.");
   console.log("\n✓ Seed complete.");
   console.log("  owner@example.com  / password123  (RESTAURANT_OWNER)");
   console.log("  alice@example.com  / password123  (USER)");
