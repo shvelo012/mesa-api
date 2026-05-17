@@ -22,7 +22,7 @@ router.get("/confirm/:token", getPublicReservation);
 router.patch("/confirm/:token/cancel", cancelReservationByToken);
 
 router.post("/", optionalAuth, createReservation);
-router.get("/my", authenticate, requireRole(Role.USER), getUserReservations);
+router.get("/my", authenticate, getUserReservations);
 router.patch("/:id/cancel", authenticate, requireRole(Role.USER), cancelReservation);
 
 router.get("/restaurant", authenticate, getRestaurantReservations);
