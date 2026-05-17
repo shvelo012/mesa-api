@@ -31,7 +31,7 @@ export class TableModel extends Model {
   declare label: string;
 
   @Default(TableShape.RECTANGLE)
-  @Column(DataType.ENUM(...Object.values(TableShape)))
+  @Column(DataType.STRING)
   declare shape: TableShape;
 
   @Column(DataType.FLOAT)

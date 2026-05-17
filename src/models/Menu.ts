@@ -43,10 +43,10 @@ export class Menu extends Model {
   @Column(DataType.STRING)
   declare name: string;
 
-  @Column(DataType.ENUM("PHOTO", "STRUCTURED"))
+  @Column(DataType.STRING)
   declare type: MenuType;
 
-  @Column({ type: DataType.ENUM("LIST", "CARD_GRID", "TWO_COLUMN"), allowNull: true })
+  @Column({ type: DataType.STRING, allowNull: true })
   declare layoutStyle: LayoutStyle | null;
 
   @Default(0)

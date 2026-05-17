@@ -80,7 +80,7 @@ export class RestaurantStaff extends Model {
   declare restaurant: Restaurant;
 
   @Default(StaffRole.CUSTOM)
-  @Column(DataType.ENUM(...Object.values(StaffRole)))
+  @Column(DataType.STRING)
   declare role: StaffRole;
 
   @Column(DataType.JSONB)

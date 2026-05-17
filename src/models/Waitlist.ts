@@ -64,7 +64,7 @@ export class Waitlist extends Model {
   declare notes: string | null;
 
   @Default(WaitlistStatus.WAITING)
-  @Column(DataType.ENUM(...Object.values(WaitlistStatus)))
+  @Column(DataType.STRING)
   declare status: WaitlistStatus;
 
   @Default(0)

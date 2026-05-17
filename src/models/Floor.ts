@@ -33,7 +33,7 @@ export class Floor extends Model {
   declare name: string;
 
   @Default(SectionType.INDOOR)
-  @Column(DataType.ENUM(...Object.values(SectionType)))
+  @Column(DataType.STRING)
   declare sectionType: SectionType;
 
   @Default(800)

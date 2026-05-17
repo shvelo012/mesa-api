@@ -40,7 +40,7 @@ export class User extends Model {
   declare phone: string | null;
 
   @Default(Role.USER)
-  @Column(DataType.ENUM(...Object.values(Role)))
+  @Column(DataType.STRING)
   declare role: Role;
 
   @CreatedAt

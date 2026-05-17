@@ -27,7 +27,7 @@ module.exports = {
         allowNull: false,
       },
       status: {
-        type: Sequelize.ENUM('PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW'),
+        type: Sequelize.STRING,
         allowNull: false,
         defaultValue: 'PENDING',
       },
@@ -80,6 +80,5 @@ module.exports = {
 
   async down(queryInterface) {
     await queryInterface.dropTable('reservations');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_reservations_status";');
   },
 };

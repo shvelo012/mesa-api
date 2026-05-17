@@ -22,11 +22,11 @@ module.exports = {
         allowNull: false,
       },
       type: {
-        type: Sequelize.ENUM('PHOTO', 'STRUCTURED'),
+        type: Sequelize.STRING,
         allowNull: false,
       },
       layoutStyle: {
-        type: Sequelize.ENUM('LIST', 'CARD_GRID', 'TWO_COLUMN'),
+        type: Sequelize.STRING,
         allowNull: true,
       },
       order: {
@@ -47,7 +47,5 @@ module.exports = {
 
   async down(queryInterface) {
     await queryInterface.dropTable('menus');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_menus_type";');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_menus_layoutStyle";');
   },
 };

@@ -28,7 +28,7 @@ module.exports = {
         allowNull: true,
       },
       role: {
-        type: Sequelize.ENUM('USER', 'RESTAURANT_OWNER'),
+        type: Sequelize.STRING,
         allowNull: false,
         defaultValue: 'USER',
       },
@@ -45,6 +45,5 @@ module.exports = {
 
   async down(queryInterface) {
     await queryInterface.dropTable('users');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_users_role";');
   },
 };

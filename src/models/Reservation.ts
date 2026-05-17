@@ -19,6 +19,7 @@ import { TableModel } from "./Table";
 export enum ReservationStatus {
   PENDING = "PENDING",
   CONFIRMED = "CONFIRMED",
+  SEATED = "SEATED",
   CANCELLED = "CANCELLED",
   COMPLETED = "COMPLETED",
   NO_SHOW = "NO_SHOW",
@@ -44,7 +45,7 @@ export class Reservation extends Model {
   declare partySize: number;
 
   @Default(ReservationStatus.PENDING)
-  @Column(DataType.ENUM(...Object.values(ReservationStatus)))
+  @Column(DataType.STRING)
   declare status: ReservationStatus;
 
   @Column(DataType.TEXT)

@@ -15,7 +15,7 @@ module.exports = {
         allowNull: false,
       },
       shape: {
-        type: Sequelize.ENUM('RECTANGLE', 'CIRCLE', 'SQUARE'),
+        type: Sequelize.STRING,
         allowNull: false,
         defaultValue: 'RECTANGLE',
       },
@@ -92,6 +92,5 @@ module.exports = {
 
   async down(queryInterface) {
     await queryInterface.dropTable('tables');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_tables_shape";');
   },
 };

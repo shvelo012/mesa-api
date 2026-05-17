@@ -15,7 +15,7 @@ module.exports = {
         allowNull: false,
       },
       sectionType: {
-        type: Sequelize.ENUM('INDOOR', 'OUTDOOR', 'BAR', 'PRIVATE'),
+        type: Sequelize.STRING,
         allowNull: false,
         defaultValue: 'INDOOR',
       },
@@ -57,6 +57,5 @@ module.exports = {
 
   async down(queryInterface) {
     await queryInterface.dropTable('floors');
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_floors_sectionType";');
   },
 };
