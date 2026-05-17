@@ -8,6 +8,7 @@ import { Restaurant } from "../models/Restaurant";
 import { User } from "../models/User";
 import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
 import { Permission } from "../models/RestaurantStaff";
+import { sseBroadcaster } from "../lib/sse";
 import {
   sendMail,
   pendingGuestEmail,
@@ -67,10 +68,7 @@ export async function createReservation(req: AuthRequest, res: Response) {
       [Op.or]: [
         { startTime: { [Op.between]: [startTime, endTime] } },
         { endTime: { [Op.between]: [startTime, endTime] } },
-        {
-          startTime: { [Op.lte]: startTime },
-          endTime: { [Op.gte]: endTime },
-        },
+        { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
       ],
     },
   });
@@ -145,12 +143,77 @@ export async function createReservation(req: AuthRequest, res: Response) {
           smtpConfig: smtp,
         });
       }
+
+      sseBroadcaster.broadcast(restaurant.id, "new_reservation", {
+        id: reservation.id,
+        guestName: recipientName,
+        date,
+        startTime,
+        endTime,
+        partySize,
+        tableLabel: tableWithCtx.label,
+      });
     }
   } catch (err) {
     console.error("[reservation:create] notify failed:", err);
   }
 
   res.status(201).json(reservation);
+}
+
+export async function getPublicReservation(req: AuthRequest, res: Response) {
+  const { token } = req.params;
+  const reservation = await Reservation.findOne({
+    where: { confirmationToken: token },
+    include: [
+      {
+        model: TableModel,
+        include: [{ model: Floor, include: [Restaurant] }],
+      },
+      { model: User, attributes: ["name", "email"] },
+    ],
+  });
+  if (!reservation) {
+    res.status(404).json({ error: "Reservation not found" });
+    return;
+  }
+  const restaurant = reservation.table?.floor?.restaurant;
+  res.json({
+    id: reservation.id,
+    confirmationToken: reservation.confirmationToken,
+    date: reservation.date,
+    startTime: reservation.startTime,
+    endTime: reservation.endTime,
+    partySize: reservation.partySize,
+    status: reservation.status,
+    notes: reservation.notes,
+    guestName: reservation.user?.name || reservation.guestName,
+    guestEmail: reservation.user?.email || reservation.guestEmail,
+    guestPhone: reservation.guestPhone,
+    tableLabel: reservation.table?.label,
+    restaurantName: restaurant?.name,
+    restaurantAddress: restaurant?.address,
+    restaurantPhone: restaurant?.phone,
+  });
+}
+
+export async function cancelReservationByToken(req: AuthRequest, res: Response) {
+  const { token } = req.params;
+  const reservation = await Reservation.findOne({ where: { confirmationToken: token } });
+  if (!reservation) {
+    res.status(404).json({ error: "Reservation not found" });
+    return;
+  }
+  if (reservation.status === ReservationStatus.CANCELLED) {
+    res.status(400).json({ error: "Already cancelled" });
+    return;
+  }
+  if (reservation.status === ReservationStatus.COMPLETED) {
+    res.status(400).json({ error: "Completed reservations cannot be cancelled" });
+    return;
+  }
+  await reservation.update({ status: ReservationStatus.CANCELLED });
+  res.json({ status: reservation.status });
 }
 
 export async function getUserReservations(req: AuthRequest, res: Response) {
@@ -190,20 +253,84 @@ export async function getRestaurantReservations(req: AuthRequest, res: Response)
     return;
   }
 
-  const { date, status } = req.query;
+  const { date, status, search, dateFrom, dateTo, tableId } = req.query as Record<string, string | undefined>;
+
+  const tableWhere: Record<string, unknown> = {};
+  if (tableId) tableWhere.id = tableId;
+
   const where: Record<string, unknown> = {};
   if (date) where.date = date;
   if (status) where.status = status;
+  if (dateFrom || dateTo) {
+    const range: Record<string, string> = {};
+    if (dateFrom) range[Op.gte as unknown as string] = dateFrom;
+    if (dateTo) range[Op.lte as unknown as string] = dateTo;
+    where.date = range;
+  }
+  if (search) {
+    where[Op.or as unknown as string] = [
+      { guestName: { [Op.iLike]: `%${search}%` } },
+      { guestEmail: { [Op.iLike]: `%${search}%` } },
+      { guestPhone: { [Op.iLike]: `%${search}%` } },
+    ];
+  }
 
   const reservations = await Reservation.findAll({
     where,
     include: [
-      { model: TableModel, where: {}, include: [{ model: Floor, where: { restaurantId: restaurant.id } }] },
+      {
+        model: TableModel,
+        where: Object.keys(tableWhere).length ? tableWhere : undefined,
+        include: [{ model: Floor, where: { restaurantId: restaurant.id } }],
+      },
       { model: User, attributes: ["id", "name", "email", "phone"] },
     ],
     order: [["date", "ASC"], ["startTime", "ASC"]],
   });
   res.json(reservations);
+}
+
+export async function bulkUpdateStatus(req: AuthRequest, res: Response) {
+  const restaurant = await getRestaurantForUser(req.user!.userId);
+  if (!restaurant) {
+    res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.RESERVATIONS_WRITE)) {
+    res.status(403).json({ error: "Missing permission" });
+    return;
+  }
+
+  const { ids, status } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0 || !Object.values(ReservationStatus).includes(status)) {
+    res.status(400).json({ error: "Invalid request" });
+    return;
+  }
+
+  const floors = await Floor.findAll({ where: { restaurantId: restaurant.id }, attributes: ["id"] });
+  const tables = await TableModel.findAll({ where: { floorId: floors.map((f) => f.id) }, attributes: ["id"] });
+  const tableIds = new Set(tables.map((t) => t.id));
+
+  const reservations = await Reservation.findAll({
+    where: { id: { [Op.in]: ids } },
+    include: [{ model: TableModel, attributes: ["id"] }],
+  });
+
+  const owned = reservations.filter((r) => tableIds.has(r.tableId));
+  if (owned.length !== ids.length) {
+    res.status(403).json({ error: "Some reservations don't belong to your restaurant" });
+    return;
+  }
+
+  await Reservation.update({ status }, { where: { id: { [Op.in]: owned.map((r) => r.id) } } });
+
+  sseBroadcaster.broadcast(restaurant.id, "reservations_bulk_updated", {
+    ids: owned.map((r) => r.id),
+    status,
+  });
+
+  res.json({ updated: owned.length });
 }
 
 export async function getAvailability(req: AuthRequest, res: Response) {
@@ -232,7 +359,6 @@ export async function getAvailability(req: AuthRequest, res: Response) {
 
   const allTableIds = floors.flatMap((f) => (f.tables || []).map((t) => t.id));
 
-  // Only compute occupied tables when time window is provided
   let occupiedIds = new Set<string>();
   if (startTime && endTime && allTableIds.length) {
     const occupied = await Reservation.findAll({
@@ -251,7 +377,6 @@ export async function getAvailability(req: AuthRequest, res: Response) {
     occupiedIds = new Set(occupied.map((r) => r.tableId));
   }
 
-  // Fetch all reservations for the date to show booking times per table
   const allReservations = allTableIds.length
     ? await Reservation.findAll({
         where: {
@@ -401,7 +526,12 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
   const previousStatus = reservation.status;
   await reservation.update({ status });
 
-  // Auto-decline overlapping pending reservations when confirming
+  sseBroadcaster.broadcast(restaurant.id, "reservation_updated", {
+    id: reservation.id,
+    status,
+    guestName: reservation.user?.name || reservation.guestName,
+  });
+
   let autoDeclined: Reservation[] = [];
   if (status === ReservationStatus.CONFIRMED && previousStatus !== ReservationStatus.CONFIRMED) {
     const overlapping = await Reservation.findAll({
@@ -459,7 +589,6 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
       }
     }
 
-    // Notify auto-declined guests
     for (const other of autoDeclined) {
       const otherEmail = other.user?.email || other.guestEmail;
       const otherName = other.user?.name || other.guestName || "Guest";
@@ -507,9 +636,7 @@ export async function getReservationReport(req: AuthRequest, res: Response) {
   const sevenDaysFromNow = new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0];
 
   const allReservations = await Reservation.findAll({
-    where: {
-      date: { [Op.gte]: today },
-    },
+    where: { date: { [Op.gte]: today } },
     include: [
       { model: TableModel, include: [{ model: Floor, where: { restaurantId: restaurant.id } }] },
       { model: User, attributes: ["id", "name", "email"] },
@@ -517,18 +644,11 @@ export async function getReservationReport(req: AuthRequest, res: Response) {
     order: [["date", "ASC"], ["startTime", "ASC"]],
   });
 
-  const stats = {
-    total: allReservations.length,
-    pending: 0,
-    confirmed: 0,
-    cancelled: 0,
-    completed: 0,
-    noShow: 0,
-  };
-
+  const stats = { total: 0, pending: 0, confirmed: 0, cancelled: 0, completed: 0, noShow: 0 };
   const daily: Record<string, { total: number; confirmed: number; pending: number; cancelled: number }> = {};
 
   for (const r of allReservations) {
+    stats.total++;
     if (r.status === ReservationStatus.PENDING) stats.pending++;
     else if (r.status === ReservationStatus.CONFIRMED) stats.confirmed++;
     else if (r.status === ReservationStatus.CANCELLED) stats.cancelled++;

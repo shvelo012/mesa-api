@@ -1,8 +1,10 @@
 import { Response } from "express";
 import { z } from "zod";
+import { Op } from "sequelize";
 import { Floor, SectionType } from "../models/Floor";
 import { TableModel } from "../models/Table";
 import { Wall } from "../models/Wall";
+import { Reservation, ReservationStatus } from "../models/Reservation";
 import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
 import { Permission } from "../models/RestaurantStaff";
 import { sequelize } from "../lib/database";
@@ -168,6 +170,90 @@ const saveLayoutSchema = z.object({
     })
   ),
 });
+
+export async function getLiveStatus(req: AuthRequest, res: Response) {
+  const restaurant = await getRestaurantForUser(req.user!.userId);
+  if (!restaurant) {
+    res.status(404).json({ error: "No restaurant found" });
+    return;
+  }
+  const perms = await getUserPermissions(req.user!.userId, restaurant.id);
+  if (!perms.includes(Permission.RESERVATIONS_READ)) {
+    res.status(403).json({ error: "Missing permission" });
+    return;
+  }
+
+  const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
+  const floors = await Floor.findAll({
+    where: { restaurantId: restaurant.id },
+    include: [TableModel],
+    order: [["createdAt", "ASC"]],
+  });
+
+  const allTableIds = floors.flatMap((f) => (f.tables || []).map((t) => t.id));
+
+  const reservations = allTableIds.length
+    ? await Reservation.findAll({
+        where: {
+          tableId: { [Op.in]: allTableIds },
+          date,
+          status: { [Op.in]: [ReservationStatus.CONFIRMED, ReservationStatus.PENDING] },
+        },
+        order: [["startTime", "ASC"]],
+      })
+    : [];
+
+  const tableStatusMap: Record<string, {
+    status: "AVAILABLE" | "ARRIVING_SOON" | "OCCUPIED" | "UPCOMING";
+    reservation?: { id: string; startTime: string; endTime: string; guestName: string | null; partySize: number };
+  }> = {};
+
+  for (const r of reservations) {
+    const guestName = r.guestName;
+    const entry = {
+      id: r.id,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      guestName,
+      partySize: r.partySize,
+    };
+
+    const isOccupied = r.startTime <= currentTime && r.endTime > currentTime;
+    const isArrivingSoon =
+      r.startTime > currentTime &&
+      r.startTime <= `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes() + 30).padStart(2, "0")}`;
+
+    const current = tableStatusMap[r.tableId];
+    if (!current || isOccupied || (!current && isArrivingSoon)) {
+      tableStatusMap[r.tableId] = {
+        status: isOccupied ? "OCCUPIED" : isArrivingSoon ? "ARRIVING_SOON" : "UPCOMING",
+        reservation: entry,
+      };
+    }
+  }
+
+  res.json(
+    floors.map((floor) => ({
+      id: floor.id,
+      name: floor.name,
+      sectionType: floor.sectionType,
+      tables: (floor.tables || []).filter((t) => t.isActive).map((t) => ({
+        id: t.id,
+        label: t.label,
+        capacity: t.capacity,
+        shape: t.shape,
+        x: t.x,
+        y: t.y,
+        width: t.width,
+        height: t.height,
+        ...(tableStatusMap[t.id] || { status: "AVAILABLE" }),
+      })),
+    }))
+  );
+}
 
 export async function saveLayout(req: AuthRequest, res: Response) {
   const restaurant = await getRestaurantForUser(req.user!.userId);

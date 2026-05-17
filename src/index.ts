@@ -9,6 +9,9 @@ import restaurantRoutes from "./routes/restaurant.routes";
 import floorRoutes from "./routes/floor.routes";
 import reservationRoutes from "./routes/reservation.routes";
 import menuRoutes from "./routes/menu.routes";
+import eventsRoutes from "./routes/events.routes";
+import waitlistRoutes from "./routes/waitlist.routes";
+import guestRoutes from "./routes/guest.routes";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -25,6 +28,9 @@ app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/floors", floorRoutes);
 app.use("/api/reservations", reservationRoutes);
 app.use("/api/menus", menuRoutes);
+app.use("/api/events", eventsRoutes);
+app.use("/api/waitlist", waitlistRoutes);
+app.use("/api/guests", guestRoutes);
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 

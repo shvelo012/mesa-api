@@ -8,9 +8,11 @@ import {
   PrimaryKey,
   Default,
   AllowNull,
+  Unique,
   CreatedAt,
   UpdatedAt,
 } from "sequelize-typescript";
+import { v4 as uuidv4 } from "uuid";
 import { User } from "./User";
 import { TableModel } from "./Table";
 
@@ -74,6 +76,11 @@ export class Reservation extends Model {
 
   @BelongsTo(() => TableModel)
   declare table: TableModel;
+
+  @Unique
+  @Default(() => uuidv4())
+  @Column(DataType.UUID)
+  declare confirmationToken: string;
 
   @CreatedAt
   declare createdAt: Date;

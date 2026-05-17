@@ -5,11 +5,13 @@ import {
   updateFloor,
   deleteFloor,
   saveLayout,
+  getLiveStatus,
 } from "../controllers/floor.controller";
 import { authenticate, optionalAuth } from "../middleware/auth";
 
 const router = Router();
 
+router.get("/restaurant/live", authenticate, getLiveStatus);
 router.get("/:id", optionalAuth, getFloor);
 router.post("/", authenticate, createFloor);
 router.put("/:id", authenticate, updateFloor);
