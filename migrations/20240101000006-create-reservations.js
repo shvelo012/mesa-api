@@ -79,6 +79,6 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.dropTable('reservations');
+    await queryInterface.dropTable('reservations', { cascade: true });
   },
 };

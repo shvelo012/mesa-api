@@ -48,6 +48,6 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.dropTable('walls');
+    await queryInterface.dropTable('walls', { cascade: true });
   },
 };

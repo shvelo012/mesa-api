@@ -51,6 +51,6 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.dropTable('menu_items');
+    await queryInterface.dropTable('menu_items', { cascade: true });
   },
 };

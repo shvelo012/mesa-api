@@ -14,6 +14,10 @@ import { MenuItem } from "../models/MenuItem";
 import { RestaurantStaff, StaffRole, ROLE_PERMISSIONS } from "../models/RestaurantStaff";
 
 async function seed() {
+  await sequelize.authenticate();
+  await sequelize.query('DROP TABLE IF EXISTS restaurant_staff CASCADE');
+  await sequelize.query('DROP TABLE IF EXISTS waitlists CASCADE');
+  await sequelize.query('DROP TABLE IF EXISTS guest_notes CASCADE');
   await connectDB();
 
   // wipe in dependency order

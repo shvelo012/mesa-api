@@ -38,6 +38,6 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.dropTable('menu_photos');
+    await queryInterface.dropTable('menu_photos', { cascade: true });
   },
 };

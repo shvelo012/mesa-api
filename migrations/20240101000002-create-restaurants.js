@@ -70,6 +70,6 @@ module.exports = {
   },
 
   async down(queryInterface) {
-    await queryInterface.dropTable('restaurants');
+    await queryInterface.dropTable('restaurants', { cascade: true });
   },
 };
