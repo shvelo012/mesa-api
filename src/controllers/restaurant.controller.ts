@@ -1,10 +1,11 @@
 import { Response, Request } from "express";
 import { z } from "zod";
-import { Op } from "sequelize";
+import { Op, fn, col, literal } from "sequelize";
 import { Restaurant } from "../models/Restaurant";
 import { Floor } from "../models/Floor";
 import { TableModel } from "../models/Table";
 import { Reservation, ReservationStatus } from "../models/Reservation";
+import { Review } from "../models/Review";
 import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
 import { Permission, RestaurantStaff } from "../models/RestaurantStaff";
 
@@ -171,7 +172,14 @@ export async function updateRestaurant(req: AuthRequest, res: Response) {
 
 export async function listRestaurants(_req: AuthRequest, res: Response) {
   const restaurants = await Restaurant.findAll({
-    attributes: ["id", "slug", "name", "description", "address", "cuisine", "openTime", "closeTime"],
+    attributes: [
+      "id", "slug", "name", "description", "address", "cuisine", "openTime", "closeTime",
+      [fn("ROUND", fn("AVG", col("reviews.stars")), 1), "avgStars"],
+      [fn("COUNT", col("reviews.id")), "reviewCount"],
+    ],
+    include: [{ model: Review, attributes: [] }],
+    group: ["Restaurant.id"],
+    subQuery: false,
   });
   res.json(restaurants);
 }
