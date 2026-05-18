@@ -124,3 +124,23 @@ export function rejectedGuestEmail(ctx: ReservationCtx): MailInput["html"] {
     </p>
   `);
 }
+
+export function verificationEmail(name: string, token: string): MailInput["html"] {
+  const url = `${process.env.FRONTEND_URL || "http://localhost:3000"}/verify-email?token=${token}`;
+  return wrap(`
+    <p>Hi ${name},</p>
+    <p>Thanks for signing up for Mesa. Verify your email address to get started.</p>
+    <p style="margin: 20px 0;">
+      <a href="${url}" style="display: inline-block; background: #c4410c; color: #fff; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Verify email</a>
+    </p>
+    <p style="font-size: 12px; color: #9a9088;">Link expires in 24 hours. If you didn't create an account, ignore this email.</p>
+  `);
+}
+
+export function passwordChangedEmail(name: string): MailInput["html"] {
+  return wrap(`
+    <p>Hi ${name},</p>
+    <p>Your Mesa account password was just changed. If this was you, no action is needed.</p>
+    <p>If you didn't make this change, contact support immediately.</p>
+  `);
+}

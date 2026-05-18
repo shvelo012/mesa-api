@@ -10,6 +10,7 @@ import {
   Unique,
   CreatedAt,
   UpdatedAt,
+  AllowNull,
 } from "sequelize-typescript";
 import { Restaurant } from "./Restaurant";
 import { Reservation } from "./Reservation";
@@ -42,6 +43,14 @@ export class User extends Model {
   @Default(Role.USER)
   @Column(DataType.STRING)
   declare role: Role;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  declare emailVerified: boolean;
+
+  @AllowNull(true)
+  @Column(DataType.STRING)
+  declare emailVerificationToken: string | null;
 
   @CreatedAt
   declare createdAt: Date;
