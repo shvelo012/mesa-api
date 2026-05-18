@@ -68,6 +68,9 @@ export class Restaurant extends Model {
   @Column(DataType.STRING)
   declare closeTime: string;
 
+  @Column(DataType.JSON)
+  declare reservationTimes: string[] | null;
+
   @Unique
   @ForeignKey(() => User)
   @Column(DataType.UUID)

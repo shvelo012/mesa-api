@@ -74,6 +74,7 @@ async function seed() {
     cuisine: "Italian",
     openTime: "11:00",
     closeTime: "23:00",
+    reservationTimes: ["12:00", "13:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00"],
     ownerId: owner1.id,
   });
 
@@ -88,6 +89,7 @@ async function seed() {
     cuisine: "Japanese",
     openTime: "12:00",
     closeTime: "22:30",
+    reservationTimes: ["12:00", "12:30", "19:00", "19:30", "20:00", "20:30"],
     ownerId: owner2.id,
   });
 
@@ -102,6 +104,7 @@ async function seed() {
     cuisine: "French",
     openTime: "10:00",
     closeTime: "23:30",
+    reservationTimes: ["10:00", "12:00", "13:00", "18:00", "19:00", "19:30", "20:00", "21:00"],
     ownerId: owner3.id,
   });
 

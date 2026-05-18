@@ -53,6 +53,7 @@ const updateSchema = createSchema.partial().extend({
   smtpPort: z.number().int().min(1).max(65535).optional().nullable(),
   smtpUser: z.string().min(1).optional().nullable(),
   smtpPass: z.string().min(1).optional().nullable(),
+  reservationTimes: z.array(z.string().regex(/^\d{2}:\d{2}$/)).optional().nullable(),
 });
 
 export async function createRestaurant(req: AuthRequest, res: Response) {
@@ -252,6 +253,7 @@ export async function getPublicAvailability(req: Request, res: Response) {
   }
 
   res.json({
+    reservationTimes: restaurant.reservationTimes ?? null,
     floors: (restaurant.floors || []).map((floor) => ({
       id: floor.id,
       name: floor.name,
