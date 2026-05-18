@@ -13,6 +13,7 @@ import { MenuItem } from "../models/MenuItem";
 import { RestaurantStaff } from "../models/RestaurantStaff";
 import { Waitlist } from "../models/Waitlist";
 import { GuestNote } from "../models/GuestNote";
+import { Review } from "../models/Review";
 
 export const sequelize = new Sequelize({
   dialect: "postgres",
@@ -22,7 +23,7 @@ export const sequelize = new Sequelize({
   username: process.env.DB_USER!,
   password: process.env.DB_PASSWORD!,
   logging: process.env.NODE_ENV === "development" ? console.log : false,
-  models: [User, Restaurant, Floor, TableModel, Wall, Reservation, Menu, MenuPhoto, MenuGroup, MenuItem, RestaurantStaff, Waitlist, GuestNote],
+  models: [User, Restaurant, Floor, TableModel, Wall, Reservation, Menu, MenuPhoto, MenuGroup, MenuItem, RestaurantStaff, Waitlist, GuestNote, Review],
 });
 
 export async function connectDB() {

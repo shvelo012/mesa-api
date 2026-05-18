@@ -14,6 +14,7 @@ import {
 } from "sequelize-typescript";
 import { Restaurant } from "./Restaurant";
 import { Reservation } from "./Reservation";
+import { Review } from "./Review";
 
 export enum Role {
   USER = "USER",
@@ -63,4 +64,7 @@ export class User extends Model {
 
   @HasMany(() => Reservation)
   declare reservations: Reservation[];
+
+  @HasMany(() => Review)
+  declare reviews: Review[];
 }
