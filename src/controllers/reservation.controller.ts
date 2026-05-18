@@ -29,7 +29,6 @@ const createSchema = z.object({
   tableId: z.string(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string(),
-  endTime: z.string(),
   partySize: z.number().int().min(1),
   notes: z.string().optional(),
   guestName: z.string().min(1).optional(),
@@ -43,7 +42,7 @@ export async function createReservation(req: AuthRequest, res: Response) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { tableId, date, startTime, endTime, partySize, notes, guestName, guestEmail, guestPhone } = parsed.data;
+  const { tableId, date, startTime, partySize, notes, guestName, guestEmail, guestPhone } = parsed.data;
 
   if (!req.user && (!guestName || !guestEmail)) {
     res.status(400).json({ error: "Name and email are required for guest reservations" });
@@ -64,12 +63,8 @@ export async function createReservation(req: AuthRequest, res: Response) {
     where: {
       tableId,
       date,
+      startTime,
       status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-      [Op.or]: [
-        { startTime: { [Op.between]: [startTime, endTime] } },
-        { endTime: { [Op.between]: [startTime, endTime] } },
-        { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
-      ],
     },
   });
   if (conflict) {
@@ -81,7 +76,6 @@ export async function createReservation(req: AuthRequest, res: Response) {
     tableId,
     date,
     startTime,
-    endTime,
     partySize,
     notes,
     userId: req.user?.userId ?? null,
@@ -117,7 +111,6 @@ export async function createReservation(req: AuthRequest, res: Response) {
         tableLabel: tableWithCtx.label,
         date,
         startTime,
-        endTime,
         partySize,
       };
 
@@ -149,7 +142,6 @@ export async function createReservation(req: AuthRequest, res: Response) {
         guestName: recipientName,
         date,
         startTime,
-        endTime,
         partySize,
         tableLabel: tableWithCtx.label,
       });
@@ -183,7 +175,6 @@ export async function getPublicReservation(req: AuthRequest, res: Response) {
     confirmationToken: reservation.confirmationToken,
     date: reservation.date,
     startTime: reservation.startTime,
-    endTime: reservation.endTime,
     partySize: reservation.partySize,
     status: reservation.status,
     notes: reservation.notes,
@@ -345,7 +336,7 @@ export async function getAvailability(req: AuthRequest, res: Response) {
     return;
   }
 
-  const { date, startTime, endTime } = req.query as Record<string, string | undefined>;
+  const { date, startTime } = req.query as Record<string, string | undefined>;
   if (!date) {
     res.status(400).json({ error: "date required" });
     return;
@@ -360,17 +351,13 @@ export async function getAvailability(req: AuthRequest, res: Response) {
   const allTableIds = floors.flatMap((f) => (f.tables || []).map((t) => t.id));
 
   let occupiedIds = new Set<string>();
-  if (startTime && endTime && allTableIds.length) {
+  if (startTime && allTableIds.length) {
     const occupied = await Reservation.findAll({
       where: {
         tableId: { [Op.in]: allTableIds },
         date,
+        startTime,
         status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-        [Op.or]: [
-          { startTime: { [Op.between]: [startTime, endTime] } },
-          { endTime: { [Op.between]: [startTime, endTime] } },
-          { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
-        ],
       },
       attributes: ["tableId"],
     });
@@ -384,18 +371,17 @@ export async function getAvailability(req: AuthRequest, res: Response) {
           date,
           status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
         },
-        attributes: ["tableId", "startTime", "endTime"],
+        attributes: ["tableId", "startTime"],
         order: [["startTime", "ASC"]],
       })
     : [];
 
-  const bookingsByTable: Record<string, { startTime: string; endTime: string }[]> = {};
+  const bookingsByTable: Record<string, { startTime: string }[]> = {};
   for (const r of allReservations) {
     const tid = r.getDataValue("tableId") as string;
     if (!bookingsByTable[tid]) bookingsByTable[tid] = [];
     bookingsByTable[tid].push({
       startTime: r.getDataValue("startTime") as string,
-      endTime: r.getDataValue("endTime") as string,
     });
   }
 
@@ -424,7 +410,6 @@ const manualCreateSchema = z.object({
   tableId: z.string(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string(),
-  endTime: z.string(),
   partySize: z.number().int().min(1),
   notes: z.string().optional(),
   guestName: z.string().min(1),
@@ -438,7 +423,7 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { tableId, date, startTime, endTime, partySize, notes, guestName, guestPhone, guestEmail } = parsed.data;
+  const { tableId, date, startTime, partySize, notes, guestName, guestPhone, guestEmail } = parsed.data;
 
   const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
@@ -465,12 +450,8 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
     where: {
       tableId,
       date,
+      startTime,
       status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-      [Op.or]: [
-        { startTime: { [Op.between]: [startTime, endTime] } },
-        { endTime: { [Op.between]: [startTime, endTime] } },
-        { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
-      ],
     },
   });
   if (conflict) {
@@ -482,7 +463,6 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
     tableId,
     date,
     startTime,
-    endTime,
     partySize,
     notes: notes ?? null,
     userId: null,
@@ -539,12 +519,8 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
         id: { [Op.ne]: reservation.id },
         tableId: reservation.tableId,
         date: reservation.date,
+        startTime: reservation.startTime,
         status: ReservationStatus.PENDING,
-        [Op.or]: [
-          { startTime: { [Op.between]: [reservation.startTime, reservation.endTime] } },
-          { endTime: { [Op.between]: [reservation.startTime, reservation.endTime] } },
-          { startTime: { [Op.lte]: reservation.startTime }, endTime: { [Op.gte]: reservation.endTime } },
-        ],
       },
       include: [{ model: User, attributes: ["id", "name", "email"] }],
     });
@@ -564,7 +540,6 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
         tableLabel: reservation.table?.label || "",
         date: reservation.date,
         startTime: reservation.startTime,
-        endTime: reservation.endTime,
         partySize: reservation.partySize,
       };
       const smtp = restaurantSmtp(restaurant);
@@ -599,7 +574,6 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
           tableLabel: reservation.table?.label || "",
           date: other.date,
           startTime: other.startTime,
-          endTime: other.endTime,
           partySize: other.partySize,
         };
         const smtp = restaurantSmtp(restaurant);
@@ -667,7 +641,6 @@ export async function getReservationReport(req: AuthRequest, res: Response) {
     id: r.id,
     date: r.date,
     startTime: r.startTime,
-    endTime: r.endTime,
     partySize: r.partySize,
     status: r.status,
     guestName: r.user?.name || r.guestName || "Guest",

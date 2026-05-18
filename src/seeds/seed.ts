@@ -266,40 +266,40 @@ async function seed() {
   // Past completed reservations — unlock reviews for alice, bob, carol at each restaurant
   await Reservation.bulkCreate([
     // alice at r1
-    { date: daysAgo(10), startTime: "19:00", endTime: "21:00", partySize: 2, status: ReservationStatus.COMPLETED, notes: "Anniversary dinner", userId: alice.id, tableId: r1IndoorTables[0].id },
+    { date: daysAgo(10), startTime: "19:00", partySize: 2, status: ReservationStatus.COMPLETED, notes: "Anniversary dinner", userId: alice.id, tableId: r1IndoorTables[0].id },
     // bob at r1
-    { date: daysAgo(8),  startTime: "20:00", endTime: "22:00", partySize: 4, status: ReservationStatus.COMPLETED, userId: bob.id,   tableId: r1IndoorTables[4].id },
+    { date: daysAgo(8),  startTime: "20:00", partySize: 4, status: ReservationStatus.COMPLETED, userId: bob.id,   tableId: r1IndoorTables[4].id },
     // carol at r1
-    { date: daysAgo(5),  startTime: "13:00", endTime: "14:30", partySize: 2, status: ReservationStatus.COMPLETED, userId: carol.id, tableId: r1TerraceTables[3].id },
+    { date: daysAgo(5),  startTime: "13:00", partySize: 2, status: ReservationStatus.COMPLETED, userId: carol.id, tableId: r1TerraceTables[3].id },
     // alice at r2
-    { date: daysAgo(14), startTime: "19:30", endTime: "21:30", partySize: 2, status: ReservationStatus.COMPLETED, userId: alice.id, tableId: r2MainTables[0].id },
+    { date: daysAgo(14), startTime: "19:30", partySize: 2, status: ReservationStatus.COMPLETED, userId: alice.id, tableId: r2MainTables[0].id },
     // bob at r2
-    { date: daysAgo(7),  startTime: "20:00", endTime: "22:00", partySize: 4, status: ReservationStatus.COMPLETED, userId: bob.id,   tableId: r2MainTables[3].id },
+    { date: daysAgo(7),  startTime: "20:00", partySize: 4, status: ReservationStatus.COMPLETED, userId: bob.id,   tableId: r2MainTables[3].id },
     // carol at r2
-    { date: daysAgo(3),  startTime: "12:30", endTime: "14:00", partySize: 2, status: ReservationStatus.COMPLETED, userId: carol.id, tableId: r2MainTables[1].id },
+    { date: daysAgo(3),  startTime: "12:30", partySize: 2, status: ReservationStatus.COMPLETED, userId: carol.id, tableId: r2MainTables[1].id },
     // alice at r3
-    { date: daysAgo(20), startTime: "18:00", endTime: "20:00", partySize: 3, status: ReservationStatus.COMPLETED, notes: "Business lunch", userId: alice.id, tableId: r3MainTables[6].id },
+    { date: daysAgo(20), startTime: "18:00", partySize: 3, status: ReservationStatus.COMPLETED, notes: "Business lunch", userId: alice.id, tableId: r3MainTables[6].id },
     // bob at r3
-    { date: daysAgo(6),  startTime: "19:00", endTime: "21:00", partySize: 2, status: ReservationStatus.COMPLETED, userId: bob.id,   tableId: r3PatioTables[0].id },
+    { date: daysAgo(6),  startTime: "19:00", partySize: 2, status: ReservationStatus.COMPLETED, userId: bob.id,   tableId: r3PatioTables[0].id },
     // carol at r3
-    { date: daysAgo(2),  startTime: "20:00", endTime: "22:30", partySize: 4, status: ReservationStatus.COMPLETED, userId: carol.id, tableId: r3MainTables[2].id },
+    { date: daysAgo(2),  startTime: "20:00", partySize: 4, status: ReservationStatus.COMPLETED, userId: carol.id, tableId: r3MainTables[2].id },
   ]);
 
   // Upcoming / active reservations
   await Reservation.bulkCreate([
-    { date: today,    startTime: "12:00", endTime: "13:30", partySize: 2, status: ReservationStatus.CONFIRMED, notes: "Lunch meeting",        userId: alice.id, tableId: r1IndoorTables[1].id },
-    { date: today,    startTime: "19:00", endTime: "21:00", partySize: 4, status: ReservationStatus.PENDING,   notes: "Birthday celebration", userId: bob.id,   tableId: r1IndoorTables[4].id },
-    { date: today,    startTime: "20:00", endTime: "22:00", partySize: 2, status: ReservationStatus.CONFIRMED, userId: alice.id, tableId: r1TerraceTables[0].id },
-    { date: tomorrow, startTime: "13:00", endTime: "14:30", partySize: 3, status: ReservationStatus.PENDING,   userId: bob.id,   tableId: r1IndoorTables[2].id },
-    { date: tomorrow, startTime: "18:30", endTime: "20:30", partySize: 8, status: ReservationStatus.CONFIRMED, notes: "Team dinner", userId: alice.id, tableId: r1IndoorTables[8].id },
+    { date: today,    startTime: "12:00", partySize: 2, status: ReservationStatus.CONFIRMED, notes: "Lunch meeting",        userId: alice.id, tableId: r1IndoorTables[1].id },
+    { date: today,    startTime: "19:00", partySize: 4, status: ReservationStatus.PENDING,   notes: "Birthday celebration", userId: bob.id,   tableId: r1IndoorTables[4].id },
+    { date: today,    startTime: "20:00", partySize: 2, status: ReservationStatus.CONFIRMED, userId: alice.id, tableId: r1TerraceTables[0].id },
+    { date: tomorrow, startTime: "13:00", partySize: 3, status: ReservationStatus.PENDING,   userId: bob.id,   tableId: r1IndoorTables[2].id },
+    { date: tomorrow, startTime: "18:30", partySize: 8, status: ReservationStatus.CONFIRMED, notes: "Team dinner", userId: alice.id, tableId: r1IndoorTables[8].id },
     // r2 upcoming
-    { date: today,    startTime: "19:00", endTime: "21:00", partySize: 2, status: ReservationStatus.CONFIRMED, userId: carol.id, tableId: r2MainTables[0].id },
-    { date: tomorrow, startTime: "20:00", endTime: "22:00", partySize: 4, status: ReservationStatus.PENDING,   userId: alice.id, tableId: r2MainTables[3].id },
+    { date: today,    startTime: "19:00", partySize: 2, status: ReservationStatus.CONFIRMED, userId: carol.id, tableId: r2MainTables[0].id },
+    { date: tomorrow, startTime: "20:00", partySize: 4, status: ReservationStatus.PENDING,   userId: alice.id, tableId: r2MainTables[3].id },
     // r3 upcoming
-    { date: today,    startTime: "19:30", endTime: "21:30", partySize: 2, status: ReservationStatus.CONFIRMED, userId: bob.id,   tableId: r3PatioTables[1].id },
-    { date: tomorrow, startTime: "12:00", endTime: "13:30", partySize: 6, status: ReservationStatus.PENDING,   userId: carol.id, tableId: r3MainTables[7].id },
+    { date: today,    startTime: "19:30", partySize: 2, status: ReservationStatus.CONFIRMED, userId: bob.id,   tableId: r3PatioTables[1].id },
+    { date: tomorrow, startTime: "12:00", partySize: 6, status: ReservationStatus.PENDING,   userId: carol.id, tableId: r3MainTables[7].id },
     // guest reservation
-    { date: today, startTime: "19:30", endTime: "21:30", partySize: 2, status: ReservationStatus.PENDING, guestName: "Charlie Davis", guestEmail: "charlie@example.com", guestPhone: "+1-555-0303", userId: null, tableId: r1IndoorTables[0].id },
+    { date: today, startTime: "19:30", partySize: 2, status: ReservationStatus.PENDING, guestName: "Charlie Davis", guestEmail: "charlie@example.com", guestPhone: "+1-555-0303", userId: null, tableId: r1IndoorTables[0].id },
   ]);
 
   console.log("Reservations created.");

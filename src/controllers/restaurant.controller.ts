@@ -208,7 +208,7 @@ export async function getPublicAvailability(req: Request, res: Response) {
     return;
   }
 
-  const { date, startTime, endTime } = req.query as Record<string, string | undefined>;
+  const { date, startTime } = req.query as Record<string, string | undefined>;
   if (!date) {
     res.status(400).json({ error: "date required" });
     return;
@@ -216,26 +216,20 @@ export async function getPublicAvailability(req: Request, res: Response) {
 
   const allTableIds = (restaurant.floors || []).flatMap((f) => (f.tables || []).map((t) => t.id).filter(Boolean));
 
-  // Occupied tables for the requested time window
   let occupiedIds = new Set<string>();
-  if (startTime && endTime && allTableIds.length) {
+  if (startTime && allTableIds.length) {
     const occupied = await Reservation.findAll({
       where: {
         tableId: { [Op.in]: allTableIds },
         date,
+        startTime,
         status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-        [Op.or]: [
-          { startTime: { [Op.between]: [startTime, endTime] } },
-          { endTime: { [Op.between]: [startTime, endTime] } },
-          { startTime: { [Op.lte]: startTime }, endTime: { [Op.gte]: endTime } },
-        ],
       },
       attributes: ["tableId"],
     });
     occupiedIds = new Set(occupied.map((r) => r.tableId));
   }
 
-  // All reservations for the date (for tooltip bookings list)
   const allReservations = allTableIds.length
     ? await Reservation.findAll({
         where: {
@@ -243,18 +237,17 @@ export async function getPublicAvailability(req: Request, res: Response) {
           date,
           status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
         },
-        attributes: ["tableId", "startTime", "endTime"],
+        attributes: ["tableId", "startTime"],
         order: [["startTime", "ASC"]],
       })
     : [];
 
-  const bookingsByTable: Record<string, { startTime: string; endTime: string }[]> = {};
+  const bookingsByTable: Record<string, { startTime: string }[]> = {};
   for (const r of allReservations) {
     const tid = r.getDataValue("tableId") as string;
     if (!bookingsByTable[tid]) bookingsByTable[tid] = [];
     bookingsByTable[tid].push({
       startTime: r.getDataValue("startTime") as string,
-      endTime: r.getDataValue("endTime") as string,
     });
   }
 

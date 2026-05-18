@@ -45,7 +45,8 @@ Restaurant    — slug, name, description, address, phone, email, cuisine, openT
 Floor         — name, sectionType, width, height, bgColor
 Table         — label, shape, x, y, width, height, rotation, capacity, minCapacity, isWindowSeat, isActive
 Wall          — x1, y1, x2, y2
-Reservation   — date, startTime, endTime, partySize, status, notes, userId?, guestName?, guestEmail?, guestPhone?
+Reservation   — date, startTime, partySize, status, notes, userId?, guestName?, guestEmail?, guestPhone?
+              — No endTime: table is occupied from startTime until next reservation on same table/date or restaurant closeTime.
 ```
 
 Reservations support both authenticated users and guests. When no token is present, `guestName` and `guestEmail` are required.

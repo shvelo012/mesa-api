@@ -208,28 +208,30 @@ export async function getLiveStatus(req: AuthRequest, res: Response) {
 
   const tableStatusMap: Record<string, {
     status: "AVAILABLE" | "ARRIVING_SOON" | "OCCUPIED" | "UPCOMING";
-    reservation?: { id: string; startTime: string; endTime: string; guestName: string | null; partySize: number };
+    reservation?: { id: string; startTime: string; guestName: string | null; partySize: number };
   }> = {};
 
+  // reservations are ordered by startTime ASC; last write per tableId wins for OCCUPIED
   for (const r of reservations) {
     const guestName = r.guestName;
     const entry = {
       id: r.id,
       startTime: r.startTime,
-      endTime: r.endTime,
       guestName,
       partySize: r.partySize,
     };
 
-    const isOccupied = r.startTime <= currentTime && r.endTime > currentTime;
+    const isOccupied = r.startTime <= currentTime;
     const isArrivingSoon =
       r.startTime > currentTime &&
       r.startTime <= `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes() + 30).padStart(2, "0")}`;
 
-    const current = tableStatusMap[r.tableId];
-    if (!current || isOccupied || (!current && isArrivingSoon)) {
+    if (isOccupied) {
+      // overwrite so we always keep the latest (largest startTime <= now)
+      tableStatusMap[r.tableId] = { status: "OCCUPIED", reservation: entry };
+    } else if (!tableStatusMap[r.tableId]) {
       tableStatusMap[r.tableId] = {
-        status: isOccupied ? "OCCUPIED" : isArrivingSoon ? "ARRIVING_SOON" : "UPCOMING",
+        status: isArrivingSoon ? "ARRIVING_SOON" : "UPCOMING",
         reservation: entry,
       };
     }

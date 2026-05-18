@@ -73,7 +73,6 @@ interface ReservationCtx {
   tableLabel: string;
   date: string;
   startTime: string;
-  endTime: string;
   partySize: number;
 }
 
@@ -83,7 +82,7 @@ export function pendingGuestEmail(ctx: ReservationCtx): MailInput["html"] {
     <p>Thanks for booking at <strong>${ctx.restaurantName}</strong>. Your reservation is <strong>pending confirmation</strong> by the restaurant.</p>
     <p style="margin: 16px 0; padding: 12px; background: #fff; border-left: 3px solid #c4410c;">
       <strong>Table ${ctx.tableLabel}</strong><br/>
-      ${ctx.date} · ${ctx.startTime}–${ctx.endTime}<br/>
+      ${ctx.date} · ${ctx.startTime}<br/>
       ${ctx.partySize} guest${ctx.partySize === 1 ? "" : "s"}
     </p>
     <p>You'll receive another email as soon as the restaurant accepts or declines.</p>
@@ -96,7 +95,7 @@ export function pendingOwnerEmail(ctx: ReservationCtx & { contact: string }): Ma
     <p style="margin: 16px 0; padding: 12px; background: #fff; border-left: 3px solid #c4410c;">
       <strong>${ctx.guestName}</strong> · ${ctx.contact}<br/>
       Table ${ctx.tableLabel} · ${ctx.partySize} guest${ctx.partySize === 1 ? "" : "s"}<br/>
-      ${ctx.date} · ${ctx.startTime}–${ctx.endTime}
+      ${ctx.date} · ${ctx.startTime}
     </p>
     <p>Open your dashboard to accept or decline.</p>
   `);
@@ -108,7 +107,7 @@ export function confirmedGuestEmail(ctx: ReservationCtx): MailInput["html"] {
     <p>Your reservation at <strong>${ctx.restaurantName}</strong> is <strong style="color: #16a34a;">confirmed</strong>.</p>
     <p style="margin: 16px 0; padding: 12px; background: #fff; border-left: 3px solid #16a34a;">
       <strong>Table ${ctx.tableLabel}</strong><br/>
-      ${ctx.date} · ${ctx.startTime}–${ctx.endTime}<br/>
+      ${ctx.date} · ${ctx.startTime}<br/>
       ${ctx.partySize} guest${ctx.partySize === 1 ? "" : "s"}
     </p>
     <p>See you soon.</p>
@@ -120,7 +119,7 @@ export function rejectedGuestEmail(ctx: ReservationCtx): MailInput["html"] {
     <p>Hi ${ctx.guestName},</p>
     <p>Sorry — your reservation at <strong>${ctx.restaurantName}</strong> couldn't be accepted for this time. Please try a different slot.</p>
     <p style="margin: 16px 0; padding: 12px; background: #fff; border-left: 3px solid #dc2626;">
-      Table ${ctx.tableLabel} · ${ctx.date} · ${ctx.startTime}–${ctx.endTime}
+      Table ${ctx.tableLabel} · ${ctx.date} · ${ctx.startTime}
     </p>
   `);
 }
