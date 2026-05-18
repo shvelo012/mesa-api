@@ -44,7 +44,9 @@ module.exports = {
       },
     });
 
-    await queryInterface.addIndex("reviews", ["userId", "restaurantId"], { unique: true });
+    await queryInterface.sequelize.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "reviews_user_id_restaurant_id" ON reviews ("userId", "restaurantId")`
+    );
   },
 
   async down(queryInterface) {
