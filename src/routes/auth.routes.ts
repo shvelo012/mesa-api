@@ -20,7 +20,7 @@ router.get("/me", authenticate, me);
 router.post("/activate", activateStaffAccount);
 
 router.get("/verify-email", verifyEmail);
-router.post("/resend-verification", authenticate, resendVerification);
+router.post("/resend-verification", resendVerification);
 router.put("/password", authenticate, changePassword);
 
 export default router;

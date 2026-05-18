@@ -68,14 +68,9 @@ export async function register(req: Request, res: Response) {
     to: email,
     subject: "Verify your Mesa email",
     html: verificationEmail(name, token),
-  }).catch(() => {});
+  }).catch((e: Error) => console.error("[mail] send failed:", e.message));
 
-  const payload = { userId: user.id, role: user.role };
-  res.status(201).json({
-    accessToken: signAccess(payload),
-    refreshToken: signRefresh(payload),
-    user: userPayload(user),
-  });
+  res.status(201).json({ message: "Account created. Check your email to verify." });
 }
 
 export async function login(req: Request, res: Response) {
@@ -89,6 +84,11 @@ export async function login(req: Request, res: Response) {
   const user = await User.findOne({ where: { email } });
   if (!user || !(await bcrypt.compare(password, user.password))) {
     res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
+
+  if (!user.emailVerified) {
+    res.status(403).json({ error: "EMAIL_NOT_VERIFIED" });
     return;
   }
 
@@ -142,14 +142,20 @@ export async function verifyEmail(req: Request, res: Response) {
   res.json({ message: "Email verified" });
 }
 
-export async function resendVerification(req: Request & { user?: { userId: string } }, res: Response) {
-  const user = await User.findByPk(req.user!.userId);
-  if (!user) {
-    res.status(404).json({ error: "User not found" });
+export async function resendVerification(req: Request, res: Response) {
+  const email = req.body?.email ?? (req as Request & { user?: { userId: string } }).user
+    ? await User.findByPk((req as Request & { user?: { userId: string } }).user?.userId).then(u => u?.email)
+    : null;
+
+  if (!email) {
+    res.status(400).json({ error: "Email required" });
     return;
   }
-  if (user.emailVerified) {
-    res.status(400).json({ error: "Email already verified" });
+
+  const user = await User.findOne({ where: { email } });
+  // Always respond success — don't leak whether email exists
+  if (!user || user.emailVerified) {
+    res.json({ message: "If that email exists and is unverified, a link has been sent." });
     return;
   }
 
@@ -160,9 +166,9 @@ export async function resendVerification(req: Request & { user?: { userId: strin
     to: user.email,
     subject: "Verify your Mesa email",
     html: verificationEmail(user.name, token),
-  }).catch(() => {});
+  }).catch((e: Error) => console.error("[mail] send failed:", e.message));
 
-  res.json({ message: "Verification email sent" });
+  res.json({ message: "If that email exists and is unverified, a link has been sent." });
 }
 
 export async function changePassword(req: Request & { user?: { userId: string } }, res: Response) {
@@ -192,7 +198,7 @@ export async function changePassword(req: Request & { user?: { userId: string } 
     to: user.email,
     subject: "Your Mesa password was changed",
     html: passwordChangedEmail(user.name),
-  }).catch(() => {});
+  }).catch((e: Error) => console.error("[mail] send failed:", e.message));
 
   res.json({ message: "Password changed" });
 }
