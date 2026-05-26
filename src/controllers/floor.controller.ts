@@ -5,7 +5,7 @@ import { Floor, SectionType } from "../models/Floor";
 import { TableModel } from "../models/Table";
 import { Wall } from "../models/Wall";
 import { Reservation, ReservationStatus } from "../models/Reservation";
-import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
+import { AuthRequest, getRestaurantForUser, getUserPermissions, getRestaurantFeatureKeys } from "../middleware/auth";
 import { Permission } from "../models/RestaurantStaff";
 import { sequelize } from "../lib/database";
 
@@ -61,6 +61,23 @@ export async function createFloor(req: AuthRequest, res: Response) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
+
+  // Check floor_editor feature
+  const featureKeys = await getRestaurantFeatureKeys(restaurant.id);
+  if (!featureKeys.includes("floor_editor")) {
+    res.status(403).json({ error: "Feature 'floor_editor' not included in your plan" });
+    return;
+  }
+
+  // Check multi_floor: only allow more than 1 floor if plan includes it
+  if (!featureKeys.includes("multi_floor")) {
+    const existingCount = await Floor.count({ where: { restaurantId: restaurant.id } });
+    if (existingCount >= 1) {
+      res.status(403).json({ error: "Multiple floors require the Pro plan or higher" });
+      return;
+    }
+  }
+
   const { tables, walls, ...rest } = parsed.data;
   const floor = await sequelize.transaction(async (transaction) => {
     const created = await Floor.create({ ...rest, restaurantId: restaurant.id }, { transaction });

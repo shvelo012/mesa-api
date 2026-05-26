@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { listGuests, getGuestHistory, addGuestNote, deleteGuestNote } from "../controllers/guest.controller";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireFeature } from "../middleware/auth";
 
 const router = Router();
 
-router.get("/", authenticate, listGuests);
-router.get("/:email/history", authenticate, getGuestHistory);
-router.post("/:email/notes", authenticate, addGuestNote);
-router.delete("/notes/:noteId", authenticate, deleteGuestNote);
+router.get("/", authenticate, requireFeature("guest_notes"), listGuests);
+router.get("/:email/history", authenticate, requireFeature("guest_notes"), getGuestHistory);
+router.post("/:email/notes", authenticate, requireFeature("guest_notes"), addGuestNote);
+router.delete("/notes/:noteId", authenticate, requireFeature("guest_notes"), deleteGuestNote);
 
 export default router;

@@ -86,6 +86,19 @@ export async function upgradePlan(req: AuthRequest, res: Response) {
   }
 }
 
+/** Owner: get merged feature keys (plan features + direct grants) */
+export async function getMyFeatureKeys(req: AuthRequest, res: Response) {
+  try {
+    const restaurant = await getRestaurantForUser(req.user!.userId);
+    if (!restaurant) { res.json([]); return; }
+    const { getRestaurantFeatureKeys } = await import("../middleware/auth");
+    const keys = await getRestaurantFeatureKeys(restaurant.id);
+    res.json(keys);
+  } catch {
+    res.status(500).json({ error: "Failed to fetch features" });
+  }
+}
+
 /** Owner: get own subscription */
 export async function getMySubscription(req: AuthRequest, res: Response) {
   try {

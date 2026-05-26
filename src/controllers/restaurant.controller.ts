@@ -6,7 +6,7 @@ import { Floor } from "../models/Floor";
 import { TableModel } from "../models/Table";
 import { Reservation, ReservationStatus } from "../models/Reservation";
 import { Review } from "../models/Review";
-import { AuthRequest, getRestaurantForUser, getUserPermissions } from "../middleware/auth";
+import { AuthRequest, getRestaurantForUser, getUserPermissions, getRestaurantFeatureKeys } from "../middleware/auth";
 import { Permission, RestaurantStaff } from "../models/RestaurantStaff";
 
 function toSlug(name: string) {
@@ -165,6 +165,23 @@ export async function updateRestaurant(req: AuthRequest, res: Response) {
   // Don't wipe existing password if not provided in this request
   if (!("smtpPass" in req.body)) {
     delete updates.smtpPass;
+  }
+
+  // Feature-gate: custom SMTP requires custom_smtp feature
+  const smtpFieldsPresent = updates.smtpHost || updates.smtpUser || updates.smtpPass || updates.smtpPort;
+  // Feature-gate: custom reservation times requires custom_reservation_times
+  const timesFieldPresent = "reservationTimes" in req.body;
+
+  if (smtpFieldsPresent || timesFieldPresent) {
+    const featureKeys = await getRestaurantFeatureKeys(restaurant.id);
+    if (smtpFieldsPresent && !featureKeys.includes("custom_smtp")) {
+      res.status(403).json({ error: "Custom SMTP requires the Pro plan or higher" });
+      return;
+    }
+    if (timesFieldPresent && !featureKeys.includes("custom_reservation_times")) {
+      res.status(403).json({ error: "Custom reservation times require the Free Trial plan or higher" });
+      return;
+    }
   }
 
   await restaurant.update(updates);

@@ -5,13 +5,16 @@ import {
   notifyWaitlistEntry,
   updateWaitlistStatus,
 } from "../controllers/waitlist.controller";
-import { authenticate, optionalAuth } from "../middleware/auth";
+import { authenticate, optionalAuth, requireFeature } from "../middleware/auth";
 
 const router = Router();
 
-router.post("/", optionalAuth, joinWaitlist);
-router.get("/restaurant", authenticate, getRestaurantWaitlist);
-router.patch("/:id/notify", authenticate, notifyWaitlistEntry);
-router.patch("/:id/status", authenticate, updateWaitlistStatus);
+// Guest joining requires the restaurant to have waitlist feature
+router.post("/", optionalAuth, requireFeature("waitlist"), joinWaitlist);
+
+// Owner management
+router.get("/restaurant", authenticate, requireFeature("waitlist"), getRestaurantWaitlist);
+router.patch("/:id/notify", authenticate, requireFeature("waitlist"), notifyWaitlistEntry);
+router.patch("/:id/status", authenticate, requireFeature("waitlist"), updateWaitlistStatus);
 
 export default router;
