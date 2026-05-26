@@ -13,6 +13,11 @@ import { MenuGroup } from "../models/MenuGroup";
 import { MenuItem } from "../models/MenuItem";
 import { RestaurantStaff, StaffRole, ROLE_PERMISSIONS } from "../models/RestaurantStaff";
 import { Review } from "../models/Review";
+import { Feature } from "../models/Feature";
+import { Plan } from "../models/Plan";
+import { PlanFeature } from "../models/PlanFeature";
+import { Subscription, SubscriptionStatus } from "../models/Subscription";
+import { RestaurantFeature } from "../models/RestaurantFeature";
 
 function daysAgo(n: number) {
   return new Date(Date.now() - n * 86400000).toISOString().split("T")[0];
@@ -26,6 +31,11 @@ async function seed() {
   await connectDB();
 
   // wipe in dependency order
+  await RestaurantFeature.destroy({ where: {} });
+  await Subscription.destroy({ where: {} });
+  await PlanFeature.destroy({ where: {} });
+  await Plan.destroy({ where: {} });
+  await Feature.destroy({ where: {} });
   await Review.destroy({ where: {} });
   await Reservation.destroy({ where: {} });
   await Wall.destroy({ where: {} });
@@ -60,6 +70,15 @@ async function seed() {
     { email: "host@example.com",    password: ownerPw, name: "Luca Host",      phone: "+1-555-0302", role: Role.USER },
     { email: "waiter@example.com",  password: ownerPw, name: "Elena Waiter",   phone: "+1-555-0303", role: Role.USER },
   ]);
+
+  const adminPw = await bcrypt.hash("AdminMes@", 12);
+  await User.create({
+    email: "admin@mesa.com",
+    password: adminPw,
+    name: "Mesa Admin",
+    role: Role.ADMIN,
+    emailVerified: true,
+  });
 
   console.log("Users created.");
 
@@ -461,6 +480,156 @@ async function seed() {
   ]);
 
   console.log("Menus created.");
+
+  // ═══════════════════════════════════════════════════════
+  // FEATURE FLAGS
+  // ═══════════════════════════════════════════════════════
+  const featureDefs = [
+    { key: "floor_editor",              name: "Floor Plan Editor",      description: "Visual drag-and-drop editor to design restaurant layouts with tables and walls." },
+    { key: "multi_floor",               name: "Multiple Floors",        description: "Add more than one floor or section (indoor, outdoor, bar, private) per restaurant." },
+    { key: "staff_management",          name: "Staff Management",       description: "Invite staff members, assign roles (Manager, Host, Waiter, Chef) and fine-grained permissions." },
+    { key: "custom_smtp",               name: "Custom Email (SMTP)",    description: "Send reservation confirmations and notifications from your own domain via custom SMTP." },
+    { key: "events",                    name: "Events",                 description: "Create and promote special events such as tasting dinners, live music nights, or holiday menus." },
+    { key: "waitlist",                  name: "Waitlist",               description: "Let guests join a digital waitlist when the restaurant is fully booked and notify them automatically." },
+    { key: "menu_management",           name: "Menu Builder",           description: "Build structured menus with groups and items, or upload photo menus. Display publicly on your page." },
+    { key: "reviews",                   name: "Reviews",                description: "Collect verified post-visit reviews from diners and display star ratings on your restaurant page." },
+    { key: "reports",                   name: "Reports & Analytics",    description: "Reservation reports, occupancy trends, cancellation rates, and party-size breakdowns." },
+    { key: "guest_notes",               name: "Guest CRM",              description: "Add private notes to guest profiles — dietary preferences, allergies, VIP status, visit history." },
+    { key: "custom_reservation_times",  name: "Custom Time Slots",      description: "Define your own reservation time windows instead of using default 30-minute intervals." },
+  ];
+
+  const features = await Feature.bulkCreate(
+    featureDefs.map((f) => ({ ...f, isActive: true }))
+  );
+
+  // Helper: find feature by key
+  const feat = (key: string) => features.find((f) => f.key === key)!;
+
+  console.log("Features created.");
+
+  // ═══════════════════════════════════════════════════════
+  // PLANS
+  // ═══════════════════════════════════════════════════════
+
+  const planFreeTrial = await Plan.create({
+    slug: "free_trial",
+    name: "Free Trial",
+    description: "Try Mesa free for 90 days. Core reservations, floor editor, and menu builder included.",
+    priceMonthly: 0,
+    trialDays: 90,
+    isActive: true,
+    sortOrder: 0,
+  });
+
+  const planPro = await Plan.create({
+    slug: "pro",
+    name: "Pro",
+    description: "Everything you need to run a professional restaurant. Staff roles, events, waitlist, custom email, and analytics.",
+    priceMonthly: 4900,   // $49 / mo
+    trialDays: null,
+    isActive: true,
+    sortOrder: 1,
+  });
+
+  const planPremium = await Plan.create({
+    slug: "premium",
+    name: "Premium",
+    description: "Full platform access. All Pro features plus Guest CRM and priority support.",
+    priceMonthly: 9900,   // $99 / mo
+    trialDays: null,
+    isActive: true,
+    sortOrder: 2,
+  });
+
+  console.log("Plans created.");
+
+  // ═══════════════════════════════════════════════════════
+  // PLAN → FEATURES
+  // ═══════════════════════════════════════════════════════
+
+  const freeTrialFeatureKeys = [
+    "floor_editor",
+    "menu_management",
+    "reviews",
+    "custom_reservation_times",
+  ];
+
+  const proFeatureKeys = [
+    "floor_editor",
+    "multi_floor",
+    "staff_management",
+    "custom_smtp",
+    "events",
+    "waitlist",
+    "menu_management",
+    "reviews",
+    "reports",
+    "custom_reservation_times",
+  ];
+
+  const premiumFeatureKeys = [
+    // All features
+    "floor_editor",
+    "multi_floor",
+    "staff_management",
+    "custom_smtp",
+    "events",
+    "waitlist",
+    "menu_management",
+    "reviews",
+    "reports",
+    "guest_notes",
+    "custom_reservation_times",
+  ];
+
+  await PlanFeature.bulkCreate(
+    freeTrialFeatureKeys.map((key) => ({ planId: planFreeTrial.id, featureId: feat(key).id }))
+  );
+  await PlanFeature.bulkCreate(
+    proFeatureKeys.map((key) => ({ planId: planPro.id, featureId: feat(key).id }))
+  );
+  await PlanFeature.bulkCreate(
+    premiumFeatureKeys.map((key) => ({ planId: planPremium.id, featureId: feat(key).id }))
+  );
+
+  console.log("Plan features linked.");
+
+  // ═══════════════════════════════════════════════════════
+  // SUBSCRIPTIONS  (one per demo restaurant)
+  // ═══════════════════════════════════════════════════════
+
+  const now = new Date();
+  const daysFromNow = (n: number) => new Date(now.getTime() + n * 86400000);
+
+  // La Bella Vita → Premium (active, renewed monthly)
+  await Subscription.create({
+    restaurantId: r1.id,
+    planId: planPremium.id,
+    status: SubscriptionStatus.ACTIVE,
+    trialEndsAt: null,
+    currentPeriodEnd: daysFromNow(30),
+  });
+
+  // Sakura Garden → Pro (active)
+  await Subscription.create({
+    restaurantId: r2.id,
+    planId: planPro.id,
+    status: SubscriptionStatus.ACTIVE,
+    trialEndsAt: null,
+    currentPeriodEnd: daysFromNow(30),
+  });
+
+  // Brasserie Lyon → Free Trial (trialing, 90-day window)
+  await Subscription.create({
+    restaurantId: r3.id,
+    planId: planFreeTrial.id,
+    status: SubscriptionStatus.TRIALING,
+    trialEndsAt: daysFromNow(90),
+    currentPeriodEnd: null,
+  });
+
+  console.log("Subscriptions created.");
+
   console.log("\n✓ Seed complete.");
   console.log("  owner@example.com   / password123  (RESTAURANT_OWNER — La Bella Vita)");
   console.log("  owner2@example.com  / password123  (RESTAURANT_OWNER — Sakura Garden)");
@@ -471,6 +640,15 @@ async function seed() {
   console.log("  manager@example.com / password123  (MANAGER at La Bella Vita)");
   console.log("  host@example.com    / password123  (HOST at La Bella Vita)");
   console.log("  waiter@example.com  / password123  (WAITER at La Bella Vita)");
+  console.log("  admin@mesa.com      / AdminMes@    (ADMIN — platform admin)");
+  console.log("\nPlans:");
+  console.log("  free_trial  — Free,  90-day trial  — floor_editor, menu_management, reviews, custom_reservation_times");
+  console.log("  pro         — $49/mo               — + multi_floor, staff_management, custom_smtp, events, waitlist, reports");
+  console.log("  premium     — $99/mo               — all features including guest_notes");
+  console.log("\nSubscriptions:");
+  console.log("  La Bella Vita  → Premium  (ACTIVE)");
+  console.log("  Sakura Garden  → Pro      (ACTIVE)");
+  console.log("  Brasserie Lyon → FreeTrial (TRIALING, 90 days)");
 
   await sequelize.close();
 }

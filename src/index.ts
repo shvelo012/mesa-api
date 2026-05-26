@@ -13,6 +13,8 @@ import eventsRoutes from "./routes/events.routes";
 import waitlistRoutes from "./routes/waitlist.routes";
 import guestRoutes from "./routes/guest.routes";
 import reviewRoutes, { restaurantReviewRouter } from "./routes/review.routes";
+import adminRoutes from "./routes/admin.routes";
+import planRoutes from "./routes/plan.routes";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -34,6 +36,8 @@ app.use("/api/waitlist", waitlistRoutes);
 app.use("/api/guests", guestRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/restaurants/:id/reviews", restaurantReviewRouter);
+app.use("/api/admin", adminRoutes);
+app.use("/api/plans", planRoutes);
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 

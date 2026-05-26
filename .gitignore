@@ -16,5 +16,8 @@ yarn-debug.log*
 # OS
 .DS_Store
 
+# local uploads (user-generated files)
+uploads/
+
 # TypeScript
 *.tsbuildinfo

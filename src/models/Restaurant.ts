@@ -17,6 +17,8 @@ import { Floor } from "./Floor";
 import { Menu } from "./Menu";
 import { RestaurantStaff } from "./RestaurantStaff";
 import { Review } from "./Review";
+import { Subscription } from "./Subscription";
+import { RestaurantFeature } from "./RestaurantFeature";
 
 @Table({ tableName: "restaurants" })
 export class Restaurant extends Model {
@@ -90,6 +92,12 @@ export class Restaurant extends Model {
 
   @HasMany(() => Review, { onDelete: "CASCADE" })
   declare reviews: Review[];
+
+  @HasMany(() => Subscription)
+  declare subscriptions: Subscription[];
+
+  @HasMany(() => RestaurantFeature, { onDelete: "CASCADE" })
+  declare featureGrants: RestaurantFeature[];
 
   @CreatedAt
   declare createdAt: Date;

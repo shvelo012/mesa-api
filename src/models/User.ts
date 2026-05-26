@@ -19,6 +19,7 @@ import { Review } from "./Review";
 export enum Role {
   USER = "USER",
   RESTAURANT_OWNER = "RESTAURANT_OWNER",
+  ADMIN = "ADMIN",
 }
 
 @SeqTable({ tableName: "users" })
