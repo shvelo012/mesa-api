@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { User, Role } from "../models/User";
 import { signAccess, signRefresh, verifyRefresh } from "../lib/jwt";
-import { sendMail, verificationEmail, passwordChangedEmail } from "../lib/mailer";
+import { sendMail, verificationEmail, passwordChangedEmail, passwordResetEmail } from "../lib/mailer";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -112,7 +112,25 @@ export async function login(req: Request, res: Response) {
   const { email, password } = parsed.data;
 
   const user = await User.findOne({ where: { email } });
-  if (!user || !(await bcrypt.compare(password, user.password))) {
+  if (!user) {
+    res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
+
+  if (user.lockedUntil && user.lockedUntil > new Date()) {
+    res.status(429).json({ error: "Too many failed attempts. Account locked for 15 minutes." });
+    return;
+  }
+
+  const valid = await bcrypt.compare(password, user.password);
+  if (!valid) {
+    const lockExpired = user.lockedUntil && user.lockedUntil <= new Date();
+    const attempts = lockExpired ? 1 : (user.loginAttempts || 0) + 1;
+    const updates: Record<string, unknown> = { loginAttempts: attempts, lockedUntil: null };
+    if (attempts >= 5) {
+      updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+    }
+    await user.update(updates);
     res.status(401).json({ error: "Invalid credentials" });
     return;
   }
@@ -121,6 +139,8 @@ export async function login(req: Request, res: Response) {
     res.status(403).json({ error: "EMAIL_NOT_VERIFIED" });
     return;
   }
+
+  await user.update({ loginAttempts: 0, lockedUntil: null });
 
   const payload = { userId: user.id, role: user.role };
   const accessToken = signAccess(payload);
@@ -132,6 +152,75 @@ export async function login(req: Request, res: Response) {
     accessToken,
     user: userPayload(user),
   });
+}
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8),
+});
+
+export async function forgotPassword(req: Request, res: Response) {
+  const parsed = forgotPasswordSchema.safeParse(req.body);
+  const RESPONSE = { message: "If that email is registered, you'll receive a reset link shortly." };
+  if (!parsed.success) {
+    res.json(RESPONSE);
+    return;
+  }
+  const { email } = parsed.data;
+
+  const user = await User.findOne({ where: { email } });
+  if (user) {
+    const rawToken = generateVerificationToken();
+    const storedToken = hashToken(rawToken);
+    await user.update({
+      passwordResetToken: storedToken,
+      passwordResetExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    sendMail({
+      to: user.email,
+      subject: "Reset your Mesa password",
+      html: passwordResetEmail(user.name, rawToken),
+    }).catch((e: Error) => console.error("[mail] send failed:", e.message));
+  }
+
+  res.json(RESPONSE);
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  const parsed = resetPasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { token, password } = parsed.data;
+
+  const hashedToken = hashToken(token);
+  const user = await User.findOne({ where: { passwordResetToken: hashedToken } });
+  if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
+    res.status(400).json({ error: "Invalid or expired reset link" });
+    return;
+  }
+
+  const hashed = await bcrypt.hash(password, 12);
+  await user.update({
+    password: hashed,
+    passwordResetToken: null,
+    passwordResetExpiresAt: null,
+    loginAttempts: 0,
+    lockedUntil: null,
+  });
+
+  sendMail({
+    to: user.email,
+    subject: "Your Mesa password was changed",
+    html: passwordChangedEmail(user.name),
+  }).catch((e: Error) => console.error("[mail] send failed:", e.message));
+
+  res.json({ message: "Password reset successful" });
 }
 
 export async function refresh(req: Request, res: Response) {

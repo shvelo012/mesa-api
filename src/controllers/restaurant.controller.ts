@@ -38,7 +38,9 @@ function sanitize(restaurant: Restaurant) {
   return json;
 }
 
-const createSchema = z.object({
+const restaurantTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+const restaurantBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   address: z.string().min(1),
@@ -46,17 +48,25 @@ const createSchema = z.object({
   email: z.string().email(),
   notificationEmail: z.string().email().optional().nullable(),
   cuisine: z.string().optional(),
-  openTime: z.string(),
-  closeTime: z.string(),
+  openTime: restaurantTimeSchema,
+  closeTime: restaurantTimeSchema,
 });
 
-const updateSchema = createSchema.partial().extend({
+const createSchema = restaurantBaseSchema.refine(
+  d => d.openTime < d.closeTime,
+  { message: "openTime must be before closeTime", path: ["closeTime"] },
+);
+
+const updateSchema = restaurantBaseSchema.partial().extend({
   smtpHost: z.string().min(1).optional().nullable(),
   smtpPort: z.number().int().min(1).max(65535).optional().nullable(),
   smtpUser: z.string().min(1).optional().nullable(),
   smtpPass: z.string().min(1).optional().nullable(),
-  reservationTimes: z.array(z.string().regex(/^\d{2}:\d{2}$/)).optional().nullable(),
-});
+  reservationTimes: z.array(restaurantTimeSchema).optional().nullable(),
+}).refine(
+  d => !d.openTime || !d.closeTime || d.openTime < d.closeTime,
+  { message: "openTime must be before closeTime", path: ["closeTime"] },
+);
 
 export async function createRestaurant(req: AuthRequest, res: Response) {
   const parsed = createSchema.safeParse(req.body);

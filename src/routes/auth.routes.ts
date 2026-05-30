@@ -9,6 +9,8 @@ import {
   verifyEmail,
   resendVerification,
   changePassword,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/auth.controller";
 import { activateStaffAccount } from "../controllers/staff.controller";
 import { authenticate } from "../middleware/auth";
@@ -55,6 +57,14 @@ const refreshLimiter = rateLimit({
   message: { error: "Too many refresh requests" },
 });
 
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many password reset attempts, please try again later" },
+});
+
 router.post("/register", registerLimiter, register);
 router.post("/login", loginLimiter, login);
 router.post("/refresh", refreshLimiter, refresh);
@@ -65,5 +75,7 @@ router.post("/activate", activateLimiter, activateStaffAccount);
 router.get("/verify-email", verifyEmail);
 router.post("/resend-verification", resendLimiter, resendVerification);
 router.put("/password", authenticate, changePassword);
+router.post("/forgot-password", passwordResetLimiter, forgotPassword);
+router.post("/reset-password", passwordResetLimiter, resetPassword);
 
 export default router;

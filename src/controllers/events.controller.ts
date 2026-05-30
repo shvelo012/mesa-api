@@ -3,24 +3,37 @@ import { v4 as uuidv4 } from "uuid";
 import { AuthRequest, getRestaurantForUser } from "../middleware/auth";
 import { verifyAccess } from "../lib/jwt";
 import { sseBroadcaster } from "../lib/sse";
+import { createSseToken, consumeSseToken } from "../lib/sseTokens";
+
+export async function issueToken(req: AuthRequest, res: Response) {
+  const token = createSseToken(req.user!.userId);
+  res.json({ token });
+}
 
 export async function streamEvents(req: AuthRequest, res: Response) {
-  // Accept token from Authorization header OR query param (EventSource can't set headers)
   let userId: string | null = null;
-  const header = req.headers.authorization;
   const queryToken = req.query.token as string | undefined;
 
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : queryToken;
-  if (!token) {
-    res.status(401).json({ error: "No token" });
-    return;
-  }
-  try {
-    const payload = verifyAccess(token);
-    userId = payload.userId;
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-    return;
+  if (queryToken) {
+    userId = consumeSseToken(queryToken);
+    if (!userId) {
+      res.status(401).json({ error: "Invalid or expired SSE token" });
+      return;
+    }
+  } else {
+    const header = req.headers.authorization;
+    const jwtToken = header?.startsWith("Bearer ") ? header.slice(7) : null;
+    if (!jwtToken) {
+      res.status(401).json({ error: "No token" });
+      return;
+    }
+    try {
+      const payload = verifyAccess(jwtToken);
+      userId = payload.userId;
+    } catch {
+      res.status(401).json({ error: "Invalid token" });
+      return;
+    }
   }
 
   const restaurant = await getRestaurantForUser(userId);

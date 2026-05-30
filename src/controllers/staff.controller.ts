@@ -103,6 +103,7 @@ export async function inviteStaff(req: AuthRequest, res: Response) {
     isActive: true,
     invitedBy: req.user!.userId,
     activationToken: activationToken ? hashToken(activationToken) : null,
+    activationTokenExpiresAt: activationToken ? new Date(Date.now() + 72 * 60 * 60 * 1000) : null,
   });
 
   // Send invitation email
@@ -258,9 +259,13 @@ export async function activateStaffAccount(req: Request, res: Response) {
     res.status(400).json({ error: "Invalid or expired activation token" });
     return;
   }
+  if (staff.activationTokenExpiresAt && staff.activationTokenExpiresAt < new Date()) {
+    res.status(400).json({ error: "Invalid or expired activation token" });
+    return;
+  }
 
   await staff.user!.update({ password: await bcrypt.hash(password, 12) });
-  await staff.update({ activationToken: null });
+  await staff.update({ activationToken: null, activationTokenExpiresAt: null });
 
   const isProduction = process.env.NODE_ENV === "production";
   const payload = { userId: staff.user!.id, role: staff.user!.role };

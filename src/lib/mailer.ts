@@ -136,6 +136,18 @@ export function verificationEmail(name: string, token: string): MailInput["html"
   `);
 }
 
+export function passwordResetEmail(name: string, token: string): MailInput["html"] {
+  const url = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password?token=${token}`;
+  return wrap(`
+    <p>Hi ${name},</p>
+    <p>We received a request to reset your Mesa password.</p>
+    <p style="margin: 20px 0;">
+      <a href="${url}" style="display: inline-block; background: #c4410c; color: #fff; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Reset password</a>
+    </p>
+    <p style="font-size: 12px; color: #9a9088;">Link expires in 1 hour. If you didn't request this, ignore this email — your password won't change.</p>
+  `);
+}
+
 export function passwordChangedEmail(name: string): MailInput["html"] {
   return wrap(`
     <p>Hi ${name},</p>

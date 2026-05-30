@@ -7,6 +7,7 @@ import {
   ForeignKey,
   PrimaryKey,
   Default,
+  AllowNull,
   CreatedAt,
   UpdatedAt,
 } from "sequelize-typescript";
@@ -96,6 +97,10 @@ export class RestaurantStaff extends Model {
 
   @Column(DataType.STRING)
   declare activationToken: string | null;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare activationTokenExpiresAt: Date | null;
 
   @CreatedAt
   declare createdAt: Date;

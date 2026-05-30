@@ -54,6 +54,23 @@ export class User extends Model {
   @Column(DataType.STRING)
   declare emailVerificationToken: string | null;
 
+  @Default(0)
+  @AllowNull(false)
+  @Column(DataType.INTEGER)
+  declare loginAttempts: number;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare lockedUntil: Date | null;
+
+  @AllowNull(true)
+  @Column(DataType.STRING)
+  declare passwordResetToken: string | null;
+
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  declare passwordResetExpiresAt: Date | null;
+
   @CreatedAt
   declare createdAt: Date;
 

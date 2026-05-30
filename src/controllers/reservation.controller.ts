@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { z } from "zod";
 import { Op } from "sequelize";
+import { sequelize } from "../lib/database";
 import { Reservation, ReservationStatus } from "../models/Reservation";
 import { TableModel } from "../models/Table";
 import { Floor } from "../models/Floor";
@@ -20,6 +21,9 @@ import {
 import { decryptSecret } from "../lib/crypto";
 import { DEFAULT_DURATION, overlaps } from "../lib/reservationTime";
 
+class ConflictError extends Error {}
+class NotFoundError extends Error {}
+
 function restaurantSmtp(restaurant: { smtpHost?: string | null; smtpPort?: number | null; smtpUser?: string | null; smtpPass?: string | null }): SmtpConfig | undefined {
   if (restaurant.smtpHost && restaurant.smtpUser && restaurant.smtpPass) {
     let pass: string;
@@ -34,10 +38,16 @@ function restaurantSmtp(restaurant: { smtpHost?: string | null; smtpPort?: numbe
   return undefined;
 }
 
+const dateSchema = z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine(d => !isNaN(new Date(d).getTime()), "Invalid date");
+
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
 const createSchema = z.object({
   tableId: z.string(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startTime: z.string(),
+  date: dateSchema.refine(d => d >= new Date().toISOString().split("T")[0], "Past dates not accepted"),
+  startTime: timeSchema,
   duration: z.number().int().min(15).max(480).default(DEFAULT_DURATION),
   partySize: z.number().int().min(1),
   notes: z.string().max(500).optional(),
@@ -69,36 +79,46 @@ export async function createReservation(req: AuthRequest, res: Response) {
     return;
   }
 
-  const existing = await Reservation.findAll({
-    where: {
-      tableId,
-      date,
-      status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-    },
-    attributes: ["startTime", "duration"],
-  });
-
-  const hasConflict = existing.some((r) =>
-    overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, startTime, duration),
-  );
-  if (hasConflict) {
-    res.status(409).json({ error: "Table already booked for this time" });
-    return;
+  let reservation!: Reservation;
+  try {
+    await sequelize.transaction(async (t) => {
+      await sequelize.query(
+        "SELECT pg_advisory_xact_lock(hashtext(:tableId), hashtext(:date))",
+        { replacements: { tableId, date }, transaction: t },
+      );
+      const existing = await Reservation.findAll({
+        where: {
+          tableId,
+          date,
+          status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
+        },
+        attributes: ["startTime", "duration"],
+        transaction: t,
+      });
+      if (existing.some((r) => overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, startTime, duration))) {
+        throw new ConflictError("Table already booked for this time");
+      }
+      reservation = await Reservation.create({
+        tableId,
+        date,
+        startTime,
+        duration,
+        partySize,
+        notes,
+        userId: req.user?.userId ?? null,
+        guestName: guestName ?? null,
+        guestEmail: guestEmail ?? null,
+        guestPhone: guestPhone ?? null,
+        status: ReservationStatus.PENDING,
+      }, { transaction: t });
+    });
+  } catch (err) {
+    if (err instanceof ConflictError) {
+      res.status(409).json({ error: (err as Error).message });
+      return;
+    }
+    throw err;
   }
-
-  const reservation = await Reservation.create({
-    tableId,
-    date,
-    startTime,
-    duration,
-    partySize,
-    notes,
-    userId: req.user?.userId ?? null,
-    guestName: guestName ?? null,
-    guestEmail: guestEmail ?? null,
-    guestPhone: guestPhone ?? null,
-    status: ReservationStatus.PENDING,
-  });
 
   try {
     const tableWithCtx = await TableModel.findByPk(tableId, {
@@ -416,8 +436,8 @@ export async function getAvailability(req: AuthRequest, res: Response) {
 
 const manualCreateSchema = z.object({
   tableId: z.string(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  startTime: z.string(),
+  date: dateSchema,
+  startTime: timeSchema,
   duration: z.number().int().min(15).max(480).default(DEFAULT_DURATION),
   partySize: z.number().int().min(1),
   notes: z.string().max(500).optional(),
@@ -455,38 +475,48 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
     return;
   }
 
-  const existingManual = await Reservation.findAll({
-    where: {
-      tableId,
-      date,
-      status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-    },
-    attributes: ["startTime", "duration"],
-  });
-
-  const hasConflictManual = existingManual.some((r) =>
-    overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, startTime, duration),
-  );
-  if (hasConflictManual) {
-    res.status(409).json({ error: "Table already booked for this time" });
-    return;
+  let manualReservation!: Reservation;
+  try {
+    await sequelize.transaction(async (t) => {
+      await sequelize.query(
+        "SELECT pg_advisory_xact_lock(hashtext(:tableId), hashtext(:date))",
+        { replacements: { tableId, date }, transaction: t },
+      );
+      const existingManual = await Reservation.findAll({
+        where: {
+          tableId,
+          date,
+          status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
+        },
+        attributes: ["startTime", "duration"],
+        transaction: t,
+      });
+      if (existingManual.some((r) => overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, startTime, duration))) {
+        throw new ConflictError("Table already booked for this time");
+      }
+      manualReservation = await Reservation.create({
+        tableId,
+        date,
+        startTime,
+        duration,
+        partySize,
+        notes: notes ?? null,
+        userId: null,
+        guestName,
+        guestEmail: guestEmail ?? null,
+        guestPhone: guestPhone ?? null,
+        status: ReservationStatus.CONFIRMED,
+      }, { transaction: t });
+    });
+  } catch (err) {
+    if (err instanceof ConflictError) {
+      res.status(409).json({ error: (err as Error).message });
+      return;
+    }
+    throw err;
   }
 
-  const reservation = await Reservation.create({
-    tableId,
-    date,
-    startTime,
-    duration,
-    partySize,
-    notes: notes ?? null,
-    userId: null,
-    guestName,
-    guestEmail: guestEmail ?? null,
-    guestPhone: guestPhone ?? null,
-    status: ReservationStatus.CONFIRMED,
-  });
-
-  res.status(201).json(reservation);
+  res.status(201).json(manualReservation);
 }
 
 export async function updateReservationStatus(req: AuthRequest, res: Response) {
@@ -507,47 +537,61 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
     return;
   }
 
-  const reservation = await Reservation.findByPk(req.params.id, {
-    include: [
-      { model: TableModel, include: [{ model: Floor, where: { restaurantId: restaurant.id } }] },
-      { model: User, attributes: ["id", "name", "email"] },
-    ],
-  });
-  if (!reservation) {
-    res.status(404).json({ error: "Reservation not found" });
-    return;
+  let reservation!: Reservation;
+  let previousStatus!: ReservationStatus;
+  let autoDeclined: Reservation[] = [];
+  try {
+    await sequelize.transaction(async (t) => {
+      const found = await Reservation.findByPk(req.params.id, {
+        include: [
+          { model: TableModel, include: [{ model: Floor, where: { restaurantId: restaurant.id } }] },
+          { model: User, attributes: ["id", "name", "email"] },
+        ],
+        lock: true,
+        transaction: t,
+      });
+      if (!found) throw new NotFoundError("Reservation not found");
+      reservation = found;
+
+      previousStatus = reservation.status;
+      await reservation.update({ status }, { transaction: t });
+
+      if (status === ReservationStatus.CONFIRMED && previousStatus !== ReservationStatus.CONFIRMED) {
+        const allPending = await Reservation.findAll({
+          where: {
+            id: { [Op.ne]: reservation.id },
+            tableId: reservation.tableId,
+            date: reservation.date,
+            status: ReservationStatus.PENDING,
+          },
+          include: [{ model: User, attributes: ["id", "name", "email"] }],
+          transaction: t,
+        });
+
+        const confirmedDuration = reservation.duration ?? DEFAULT_DURATION;
+        const overlapping = allPending.filter((r) =>
+          overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, reservation.startTime, confirmedDuration),
+        );
+
+        for (const other of overlapping) {
+          await other.update({ status: ReservationStatus.CANCELLED }, { transaction: t });
+        }
+        autoDeclined = overlapping;
+      }
+    });
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      res.status(404).json({ error: (err as Error).message });
+      return;
+    }
+    throw err;
   }
-  const previousStatus = reservation.status;
-  await reservation.update({ status });
 
   sseBroadcaster.broadcast(restaurant.id, "reservation_updated", {
     id: reservation.id,
     status,
     guestName: reservation.user?.name || reservation.guestName,
   });
-
-  let autoDeclined: Reservation[] = [];
-  if (status === ReservationStatus.CONFIRMED && previousStatus !== ReservationStatus.CONFIRMED) {
-    const allPending = await Reservation.findAll({
-      where: {
-        id: { [Op.ne]: reservation.id },
-        tableId: reservation.tableId,
-        date: reservation.date,
-        status: ReservationStatus.PENDING,
-      },
-      include: [{ model: User, attributes: ["id", "name", "email"] }],
-    });
-
-    const confirmedDuration = reservation.duration ?? DEFAULT_DURATION;
-    const overlapping = allPending.filter((r) =>
-      overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, reservation.startTime, confirmedDuration),
-    );
-
-    for (const other of overlapping) {
-      await other.update({ status: ReservationStatus.CANCELLED });
-    }
-    autoDeclined = overlapping;
-  }
 
   try {
     const recipientEmail = reservation.user?.email || reservation.guestEmail;
