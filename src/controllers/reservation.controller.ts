@@ -17,10 +17,19 @@ import {
   rejectedGuestEmail,
   SmtpConfig,
 } from "../lib/mailer";
+import { decryptSecret } from "../lib/crypto";
+import { DEFAULT_DURATION, overlaps } from "../lib/reservationTime";
 
 function restaurantSmtp(restaurant: { smtpHost?: string | null; smtpPort?: number | null; smtpUser?: string | null; smtpPass?: string | null }): SmtpConfig | undefined {
   if (restaurant.smtpHost && restaurant.smtpUser && restaurant.smtpPass) {
-    return { host: restaurant.smtpHost, port: restaurant.smtpPort || 587, user: restaurant.smtpUser, pass: restaurant.smtpPass };
+    let pass: string;
+    try {
+      pass = decryptSecret(restaurant.smtpPass);
+    } catch {
+      console.error("[smtp] failed to decrypt SMTP password — skipping custom SMTP");
+      return undefined;
+    }
+    return { host: restaurant.smtpHost, port: restaurant.smtpPort || 587, user: restaurant.smtpUser, pass };
   }
   return undefined;
 }
@@ -29,8 +38,9 @@ const createSchema = z.object({
   tableId: z.string(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string(),
+  duration: z.number().int().min(15).max(480).default(DEFAULT_DURATION),
   partySize: z.number().int().min(1),
-  notes: z.string().optional(),
+  notes: z.string().max(500).optional(),
   guestName: z.string().min(1).optional(),
   guestEmail: z.string().email().optional(),
   guestPhone: z.string().optional(),
@@ -42,7 +52,7 @@ export async function createReservation(req: AuthRequest, res: Response) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { tableId, date, startTime, partySize, notes, guestName, guestEmail, guestPhone } = parsed.data;
+  const { tableId, date, startTime, duration, partySize, notes, guestName, guestEmail, guestPhone } = parsed.data;
 
   if (!req.user && (!guestName || !guestEmail)) {
     res.status(400).json({ error: "Name and email are required for guest reservations" });
@@ -59,15 +69,19 @@ export async function createReservation(req: AuthRequest, res: Response) {
     return;
   }
 
-  const conflict = await Reservation.findOne({
+  const existing = await Reservation.findAll({
     where: {
       tableId,
       date,
-      startTime,
       status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
     },
+    attributes: ["startTime", "duration"],
   });
-  if (conflict) {
+
+  const hasConflict = existing.some((r) =>
+    overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, startTime, duration),
+  );
+  if (hasConflict) {
     res.status(409).json({ error: "Table already booked for this time" });
     return;
   }
@@ -76,6 +90,7 @@ export async function createReservation(req: AuthRequest, res: Response) {
     tableId,
     date,
     startTime,
+    duration,
     partySize,
     notes,
     userId: req.user?.userId ?? null,
@@ -350,20 +365,6 @@ export async function getAvailability(req: AuthRequest, res: Response) {
 
   const allTableIds = floors.flatMap((f) => (f.tables || []).map((t) => t.id));
 
-  let occupiedIds = new Set<string>();
-  if (startTime && allTableIds.length) {
-    const occupied = await Reservation.findAll({
-      where: {
-        tableId: { [Op.in]: allTableIds },
-        date,
-        startTime,
-        status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-      },
-      attributes: ["tableId"],
-    });
-    occupiedIds = new Set(occupied.map((r) => r.tableId));
-  }
-
   const allReservations = allTableIds.length
     ? await Reservation.findAll({
         where: {
@@ -371,18 +372,25 @@ export async function getAvailability(req: AuthRequest, res: Response) {
           date,
           status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
         },
-        attributes: ["tableId", "startTime"],
+        attributes: ["tableId", "startTime", "duration"],
         order: [["startTime", "ASC"]],
       })
     : [];
 
-  const bookingsByTable: Record<string, { startTime: string }[]> = {};
+  const occupiedIds = new Set<string>();
+  const bookingsByTable: Record<string, { startTime: string; duration: number }[]> = {};
+
   for (const r of allReservations) {
     const tid = r.getDataValue("tableId") as string;
+    const rStart = r.getDataValue("startTime") as string;
+    const rDuration = (r.getDataValue("duration") as number) ?? DEFAULT_DURATION;
+
     if (!bookingsByTable[tid]) bookingsByTable[tid] = [];
-    bookingsByTable[tid].push({
-      startTime: r.getDataValue("startTime") as string,
-    });
+    bookingsByTable[tid].push({ startTime: rStart, duration: rDuration });
+
+    if (startTime && overlaps(rStart, rDuration, startTime, DEFAULT_DURATION)) {
+      occupiedIds.add(tid);
+    }
   }
 
   res.json({
@@ -410,8 +418,9 @@ const manualCreateSchema = z.object({
   tableId: z.string(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string(),
+  duration: z.number().int().min(15).max(480).default(DEFAULT_DURATION),
   partySize: z.number().int().min(1),
-  notes: z.string().optional(),
+  notes: z.string().max(500).optional(),
   guestName: z.string().min(1),
   guestPhone: z.string().optional(),
   guestEmail: z.string().email().optional(),
@@ -423,7 +432,7 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { tableId, date, startTime, partySize, notes, guestName, guestPhone, guestEmail } = parsed.data;
+  const { tableId, date, startTime, duration, partySize, notes, guestName, guestPhone, guestEmail } = parsed.data;
 
   const restaurant = await getRestaurantForUser(req.user!.userId);
   if (!restaurant) {
@@ -446,15 +455,19 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
     return;
   }
 
-  const conflict = await Reservation.findOne({
+  const existingManual = await Reservation.findAll({
     where: {
       tableId,
       date,
-      startTime,
       status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
     },
+    attributes: ["startTime", "duration"],
   });
-  if (conflict) {
+
+  const hasConflictManual = existingManual.some((r) =>
+    overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, startTime, duration),
+  );
+  if (hasConflictManual) {
     res.status(409).json({ error: "Table already booked for this time" });
     return;
   }
@@ -463,6 +476,7 @@ export async function createManualReservation(req: AuthRequest, res: Response) {
     tableId,
     date,
     startTime,
+    duration,
     partySize,
     notes: notes ?? null,
     userId: null,
@@ -514,16 +528,21 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
 
   let autoDeclined: Reservation[] = [];
   if (status === ReservationStatus.CONFIRMED && previousStatus !== ReservationStatus.CONFIRMED) {
-    const overlapping = await Reservation.findAll({
+    const allPending = await Reservation.findAll({
       where: {
         id: { [Op.ne]: reservation.id },
         tableId: reservation.tableId,
         date: reservation.date,
-        startTime: reservation.startTime,
         status: ReservationStatus.PENDING,
       },
       include: [{ model: User, attributes: ["id", "name", "email"] }],
     });
+
+    const confirmedDuration = reservation.duration ?? DEFAULT_DURATION;
+    const overlapping = allPending.filter((r) =>
+      overlaps(r.startTime, r.duration ?? DEFAULT_DURATION, reservation.startTime, confirmedDuration),
+    );
+
     for (const other of overlapping) {
       await other.update({ status: ReservationStatus.CANCELLED });
     }

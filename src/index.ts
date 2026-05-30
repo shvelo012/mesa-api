@@ -2,6 +2,7 @@ import "reflect-metadata";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import path from "path";
 import { connectDB } from "./lib/database";
 import authRoutes from "./routes/auth.routes";
@@ -19,7 +20,11 @@ import planRoutes from "./routes/plan.routes";
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:3000" }));
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  credentials: true,
+}));
+app.use(cookieParser());
 app.use(express.json());
 
 if (!process.env.STORAGE_DRIVER || process.env.STORAGE_DRIVER === "local") {

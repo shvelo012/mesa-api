@@ -38,6 +38,10 @@ export class Reservation extends Model {
   @Column(DataType.STRING)
   declare startTime: string;
 
+  @Default(90)
+  @Column(DataType.INTEGER)
+  declare duration: number;
+
   @Column(DataType.INTEGER)
   declare partySize: number;
 

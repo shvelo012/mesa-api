@@ -1,6 +1,8 @@
 import { Response, Request } from "express";
 import { z } from "zod";
 import { Op, fn, col, literal } from "sequelize";
+import { encryptSecret } from "../lib/crypto";
+import { DEFAULT_DURATION, overlaps } from "../lib/reservationTime";
 import { Restaurant } from "../models/Restaurant";
 import { Floor } from "../models/Floor";
 import { TableModel } from "../models/Table";
@@ -165,6 +167,8 @@ export async function updateRestaurant(req: AuthRequest, res: Response) {
   // Don't wipe existing password if not provided in this request
   if (!("smtpPass" in req.body)) {
     delete updates.smtpPass;
+  } else if (updates.smtpPass) {
+    updates.smtpPass = encryptSecret(updates.smtpPass);
   }
 
   // Feature-gate: custom SMTP requires custom_smtp feature
@@ -234,20 +238,6 @@ export async function getPublicAvailability(req: Request, res: Response) {
 
   const allTableIds = (restaurant.floors || []).flatMap((f) => (f.tables || []).map((t) => t.id).filter(Boolean));
 
-  let occupiedIds = new Set<string>();
-  if (startTime && allTableIds.length) {
-    const occupied = await Reservation.findAll({
-      where: {
-        tableId: { [Op.in]: allTableIds },
-        date,
-        startTime,
-        status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
-      },
-      attributes: ["tableId"],
-    });
-    occupiedIds = new Set(occupied.map((r) => r.tableId));
-  }
-
   const allReservations = allTableIds.length
     ? await Reservation.findAll({
         where: {
@@ -255,18 +245,25 @@ export async function getPublicAvailability(req: Request, res: Response) {
           date,
           status: { [Op.in]: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED] },
         },
-        attributes: ["tableId", "startTime"],
+        attributes: ["tableId", "startTime", "duration"],
         order: [["startTime", "ASC"]],
       })
     : [];
 
-  const bookingsByTable: Record<string, { startTime: string }[]> = {};
+  const occupiedIds = new Set<string>();
+  const bookingsByTable: Record<string, { startTime: string; duration: number }[]> = {};
+
   for (const r of allReservations) {
     const tid = r.getDataValue("tableId") as string;
+    const rStart = r.getDataValue("startTime") as string;
+    const rDuration = (r.getDataValue("duration") as number) ?? DEFAULT_DURATION;
+
     if (!bookingsByTable[tid]) bookingsByTable[tid] = [];
-    bookingsByTable[tid].push({
-      startTime: r.getDataValue("startTime") as string,
-    });
+    bookingsByTable[tid].push({ startTime: rStart, duration: rDuration });
+
+    if (startTime && overlaps(rStart, rDuration, startTime, DEFAULT_DURATION)) {
+      occupiedIds.add(tid);
+    }
   }
 
   res.json({

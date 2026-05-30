@@ -33,6 +33,10 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+function hashToken(raw: string): string {
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
 function inviteUrl(token: string): string {
   const base = process.env.FRONTEND_URL || "http://localhost:3000";
   return `${base}/activate?token=${token}`;
@@ -73,7 +77,7 @@ export async function inviteStaff(req: AuthRequest, res: Response) {
   if (!user) {
     // Create a placeholder user with a random password
     const randomPassword = crypto.randomBytes(16).toString("hex");
-    activationToken = generateToken();
+    activationToken = generateToken(); // raw token goes in the email link
     user = await User.create({
       email,
       name,
@@ -98,7 +102,7 @@ export async function inviteStaff(req: AuthRequest, res: Response) {
     permissions: resolvePermissions(role, permissions),
     isActive: true,
     invitedBy: req.user!.userId,
-    activationToken,
+    activationToken: activationToken ? hashToken(activationToken) : null,
   });
 
   // Send invitation email
@@ -245,8 +249,9 @@ export async function activateStaffAccount(req: Request, res: Response) {
 
   const { token, password } = parsed.data;
 
+  const hashedToken = hashToken(token);
   const staff = await RestaurantStaff.findOne({
-    where: { activationToken: token },
+    where: { activationToken: hashedToken },
     include: [User],
   });
   if (!staff) {
@@ -257,10 +262,21 @@ export async function activateStaffAccount(req: Request, res: Response) {
   await staff.user!.update({ password: await bcrypt.hash(password, 12) });
   await staff.update({ activationToken: null });
 
+  const isProduction = process.env.NODE_ENV === "production";
   const payload = { userId: staff.user!.id, role: staff.user!.role };
+  const accessToken = signAccess(payload);
+  const refreshToken = signRefresh(payload);
+
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax",
+    path: "/api/auth",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
   res.json({
-    accessToken: signAccess(payload),
-    refreshToken: signRefresh(payload),
+    accessToken,
     user: { id: staff.user!.id, email: staff.user!.email, name: staff.user!.name, role: staff.user!.role },
   });
 }

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import rateLimit from "express-rate-limit";
 import {
   createReservation,
   getUserReservations,
@@ -17,11 +18,19 @@ import { Role } from "../models/User";
 
 const router = Router();
 
+const createReservationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many reservation requests from this IP, please try again later" },
+});
+
 // Public — confirmation token based (no auth)
 router.get("/confirm/:token", getPublicReservation);
 router.patch("/confirm/:token/cancel", cancelReservationByToken);
 
-router.post("/", optionalAuth, createReservation);
+router.post("/", createReservationLimiter, optionalAuth, createReservation);
 router.get("/my", authenticate, getUserReservations);
 router.patch("/:id/cancel", authenticate, requireRole(Role.USER), cancelReservation);
 
