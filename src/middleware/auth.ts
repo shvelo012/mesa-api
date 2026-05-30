@@ -100,7 +100,7 @@ export function requireFeature(featureKey: string) {
       res.status(403).json({ error: "No active subscription" });
       return;
     }
-    const planFeatures: Feature[] = (sub.plan as any)?.features ?? [];
+    const planFeatures: Feature[] = sub?.plan?.features ?? [];
     const hasFeature = planFeatures.some((f: Feature) => f.key === featureKey && f.isActive);
     if (!hasFeature) {
       res.status(403).json({ error: `Feature '${featureKey}' not included in your plan` });
@@ -131,8 +131,8 @@ export async function getRestaurantFeatureKeys(restaurantId: string): Promise<st
   ]);
 
   const keys = new Set<string>();
-  directGrants.forEach((g) => { if ((g.feature as Feature)?.key) keys.add((g.feature as Feature).key); });
-  const planFeatures: Feature[] = (sub?.plan as any)?.features ?? [];
+  directGrants.forEach((g) => { if (g.feature?.key) keys.add(g.feature.key); });
+  const planFeatures: Feature[] = sub?.plan?.features ?? [];
   planFeatures.forEach((f) => { if (f.isActive) keys.add(f.key); });
   return Array.from(keys);
 }

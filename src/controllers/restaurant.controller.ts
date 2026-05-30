@@ -1,7 +1,8 @@
 import { Response, Request } from "express";
 import { z } from "zod";
-import { Op, fn, col, literal } from "sequelize";
+import { Op, fn, col, literal, UniqueConstraintError } from "sequelize";
 import { encryptSecret } from "../lib/crypto";
+import { logAudit } from "../lib/audit";
 import { DEFAULT_DURATION, overlaps } from "../lib/reservationTime";
 import { Restaurant } from "../models/Restaurant";
 import { Floor } from "../models/Floor";
@@ -40,11 +41,13 @@ function sanitize(restaurant: Restaurant) {
 
 const restaurantTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
+const phoneSchema = z.string().regex(/^\+?[\d\s\-()\s]{7,15}$/);
+
 const restaurantBaseSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   address: z.string().min(1),
-  phone: z.string().min(1),
+  phone: phoneSchema,
   email: z.string().email(),
   notificationEmail: z.string().email().optional().nullable(),
   cuisine: z.string().optional(),
@@ -82,11 +85,25 @@ export async function createRestaurant(req: AuthRequest, res: Response) {
   }
 
   const slug = await uniqueSlug(toSlug(parsed.data.name));
-  const restaurant = await Restaurant.create({
-    ...parsed.data,
-    slug,
-    ownerId: req.user!.userId,
-  });
+  let restaurant: Restaurant;
+  try {
+    restaurant = await Restaurant.create({
+      ...parsed.data,
+      slug,
+      ownerId: req.user!.userId,
+    });
+  } catch (err) {
+    if (err instanceof UniqueConstraintError) {
+      restaurant = await Restaurant.create({
+        ...parsed.data,
+        slug: `${slug}-${Date.now().toString(36)}`,
+        ownerId: req.user!.userId,
+      });
+    } else {
+      throw err;
+    }
+  }
+  logAudit({ userId: req.user!.userId, action: "RESTAURANT_CREATED", resourceType: "restaurant", resourceId: restaurant.id, ip: req.ip });
   res.status(201).json(sanitize(restaurant));
 }
 
@@ -199,6 +216,7 @@ export async function updateRestaurant(req: AuthRequest, res: Response) {
   }
 
   await restaurant.update(updates);
+  logAudit({ userId: req.user!.userId, action: "RESTAURANT_UPDATED", resourceType: "restaurant", resourceId: restaurant.id, ip: req.ip });
   res.json(sanitize(restaurant));
 }
 

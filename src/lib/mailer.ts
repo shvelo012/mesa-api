@@ -54,6 +54,7 @@ export async function sendMail({ to, subject, html, text, from: fromOverride, re
     await t.sendMail({ from, to, replyTo, subject, html, text: text || html.replace(/<[^>]+>/g, "") });
   } catch (err) {
     console.error("[mail] send failed:", err);
+    throw err;
   }
 }
 

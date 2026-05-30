@@ -10,6 +10,7 @@ import {
   Unique,
   CreatedAt,
   UpdatedAt,
+  DeletedAt,
   AllowNull,
 } from "sequelize-typescript";
 import { Restaurant } from "./Restaurant";
@@ -22,7 +23,7 @@ export enum Role {
   ADMIN = "ADMIN",
 }
 
-@SeqTable({ tableName: "users" })
+@SeqTable({ tableName: "users", paranoid: true })
 export class User extends Model {
   @PrimaryKey
   @Default(DataType.UUIDV4)
@@ -76,6 +77,9 @@ export class User extends Model {
 
   @UpdatedAt
   declare updatedAt: Date;
+
+  @DeletedAt
+  declare deletedAt: Date | null;
 
   @HasOne(() => Restaurant)
   declare restaurant: Restaurant;

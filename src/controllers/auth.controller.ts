@@ -3,8 +3,11 @@ import { Request, Response, CookieOptions } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { User, Role } from "../models/User";
+import { Reservation, ReservationStatus } from "../models/Reservation";
 import { signAccess, signRefresh, verifyRefresh } from "../lib/jwt";
 import { sendMail, verificationEmail, passwordChangedEmail, passwordResetEmail } from "../lib/mailer";
+import { logAudit } from "../lib/audit";
+
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -84,7 +87,7 @@ export async function register(req: Request, res: Response) {
   const rawToken = generateVerificationToken();
   const storedToken = hashToken(rawToken);
 
-  await User.create({
+  const newUser = await User.create({
     email,
     password: hashed,
     name,
@@ -93,6 +96,7 @@ export async function register(req: Request, res: Response) {
     emailVerified: false,
     emailVerificationToken: storedToken,
   });
+  logAudit({ userId: newUser.id, action: "REGISTER", resourceType: "user", resourceId: newUser.id, ip: req.ip });
 
   sendMail({
     to: email,
@@ -118,6 +122,7 @@ export async function login(req: Request, res: Response) {
   }
 
   if (user.lockedUntil && user.lockedUntil > new Date()) {
+    logAudit({ userId: user.id, action: "LOGIN_BLOCKED_LOCKED", resourceType: "user", resourceId: user.id, ip: req.ip });
     res.status(429).json({ error: "Too many failed attempts. Account locked for 15 minutes." });
     return;
   }
@@ -129,6 +134,9 @@ export async function login(req: Request, res: Response) {
     const updates: Record<string, unknown> = { loginAttempts: attempts, lockedUntil: null };
     if (attempts >= 5) {
       updates.lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+      logAudit({ userId: user.id, action: "ACCOUNT_LOCKED", resourceType: "user", resourceId: user.id, ip: req.ip });
+    } else {
+      logAudit({ userId: user.id, action: "LOGIN_FAILED", resourceType: "user", resourceId: user.id, metadata: { attempt: attempts }, ip: req.ip });
     }
     await user.update(updates);
     res.status(401).json({ error: "Invalid credentials" });
@@ -147,6 +155,7 @@ export async function login(req: Request, res: Response) {
   const refreshToken = signRefresh(payload);
 
   setRefreshCookie(res, refreshToken);
+  logAudit({ userId: user.id, action: "LOGIN", resourceType: "user", resourceId: user.id, ip: req.ip });
 
   res.json({
     accessToken,
@@ -245,7 +254,8 @@ export async function refresh(req: Request, res: Response) {
   }
 }
 
-export function logout(_req: Request, res: Response) {
+export function logout(req: Request & { user?: { userId: string } }, res: Response) {
+  logAudit({ userId: req.user?.userId ?? null, action: "LOGOUT", ip: req.ip });
   clearRefreshCookie(res);
   res.json({ message: "Logged out" });
 }
@@ -309,6 +319,33 @@ export async function resendVerification(req: Request, res: Response) {
   res.json({ message: "If that email exists and is unverified, a link has been sent." });
 }
 
+export async function deleteAccount(req: Request & { user?: { userId: string } }, res: Response) {
+  const user = await User.findByPk(req.user!.userId);
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  // Cancel all future pending/confirmed reservations
+  await Reservation.update(
+    { status: ReservationStatus.CANCELLED },
+    {
+      where: {
+        userId: user.id,
+        status: [ReservationStatus.PENDING, ReservationStatus.CONFIRMED],
+      },
+    },
+  );
+
+  logAudit({ userId: user.id, action: "ACCOUNT_DELETED", resourceType: "user", resourceId: user.id, ip: req.ip });
+
+  // Soft-delete via paranoid mode (sets deletedAt)
+  await user.destroy();
+
+  clearRefreshCookie(res);
+  res.json({ message: "Account deleted" });
+}
+
 export async function changePassword(req: Request & { user?: { userId: string } }, res: Response) {
   const parsed = changePasswordSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -331,6 +368,7 @@ export async function changePassword(req: Request & { user?: { userId: string } 
 
   const hashed = await bcrypt.hash(newPassword, 12);
   await user.update({ password: hashed });
+  logAudit({ userId: user.id, action: "PASSWORD_CHANGED", resourceType: "user", resourceId: user.id, ip: req.ip });
 
   sendMail({
     to: user.email,

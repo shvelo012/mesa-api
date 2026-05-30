@@ -11,6 +11,7 @@ import {
   changePassword,
   forgotPassword,
   resetPassword,
+  deleteAccount,
 } from "../controllers/auth.controller";
 import { activateStaffAccount } from "../controllers/staff.controller";
 import { authenticate } from "../middleware/auth";
@@ -75,6 +76,7 @@ router.post("/activate", activateLimiter, activateStaffAccount);
 router.get("/verify-email", verifyEmail);
 router.post("/resend-verification", resendLimiter, resendVerification);
 router.put("/password", authenticate, changePassword);
+router.delete("/me", authenticate, deleteAccount);
 router.post("/forgot-password", passwordResetLimiter, forgotPassword);
 router.post("/reset-password", passwordResetLimiter, resetPassword);
 

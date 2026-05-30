@@ -20,6 +20,7 @@ import {
 } from "../lib/mailer";
 import { decryptSecret } from "../lib/crypto";
 import { DEFAULT_DURATION, overlaps } from "../lib/reservationTime";
+import { logAudit } from "../lib/audit";
 
 class ConflictError extends Error {}
 class NotFoundError extends Error {}
@@ -43,6 +44,7 @@ const dateSchema = z.string()
   .refine(d => !isNaN(new Date(d).getTime()), "Invalid date");
 
 const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const phoneSchema = z.string().regex(/^\+?[\d\s\-()\s]{7,15}$/);
 
 const createSchema = z.object({
   tableId: z.string(),
@@ -53,7 +55,7 @@ const createSchema = z.object({
   notes: z.string().max(500).optional(),
   guestName: z.string().min(1).optional(),
   guestEmail: z.string().email().optional(),
-  guestPhone: z.string().optional(),
+  guestPhone: phoneSchema.optional(),
 });
 
 export async function createReservation(req: AuthRequest, res: Response) {
@@ -442,7 +444,7 @@ const manualCreateSchema = z.object({
   partySize: z.number().int().min(1),
   notes: z.string().max(500).optional(),
   guestName: z.string().min(1),
-  guestPhone: z.string().optional(),
+  guestPhone: phoneSchema.optional(),
   guestEmail: z.string().email().optional(),
 });
 
@@ -591,6 +593,14 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
     id: reservation.id,
     status,
     guestName: reservation.user?.name || reservation.guestName,
+  });
+  logAudit({
+    userId: req.user!.userId,
+    action: "RESERVATION_STATUS_CHANGED",
+    resourceType: "reservation",
+    resourceId: reservation.id,
+    metadata: { from: previousStatus, to: status, autoDeclined: autoDeclined.map((r) => r.id) },
+    ip: req.ip,
   });
 
   try {
