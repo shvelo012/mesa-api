@@ -35,7 +35,9 @@ export const sequelize = new Sequelize({
 });
 
 export async function connectDB() {
+  // Authenticate only. Schema is owned by sequelize-cli migrations (npm run
+  // db:migrate) — never sync()/alter on boot, which would drift the live
+  // schema and fight the migration history.
   await sequelize.authenticate();
-  await sequelize.sync({ alter: true });
   console.log("Database connected.");
 }
