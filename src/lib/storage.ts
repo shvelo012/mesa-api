@@ -8,6 +8,20 @@ import { Request } from "express";
 const STORAGE_DRIVER = process.env.STORAGE_DRIVER || "local";
 const UPLOAD_DIR = path.join(process.cwd(), "uploads", "menus");
 
+// Allowlist of accepted image types → safe stored extension.
+// SVG is intentionally excluded: it can embed <script> and execute as XSS
+// when served inline. The stored extension is derived from this map, never
+// from the client-supplied originalname.
+const ALLOWED_TYPES: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+};
+
+function safeExt(mimetype: string): string {
+  return ALLOWED_TYPES[mimetype] ?? "";
+}
+
 if (STORAGE_DRIVER === "local" && !fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
@@ -26,8 +40,8 @@ const s3 = STORAGE_DRIVER === "s3"
 const diskStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
+    // Extension comes from the validated mimetype, not the client filename.
+    cb(null, `${uuidv4()}${safeExt(file.mimetype)}`);
   },
 });
 
@@ -37,8 +51,10 @@ export const upload = multer({
   storage: STORAGE_DRIVER === "s3" ? memoryStorage : diskStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req: Request, file, cb) => {
-    if (!file.mimetype.startsWith("image/")) {
-      cb(new Error("Only image files allowed"));
+    if (!(file.mimetype in ALLOWED_TYPES)) {
+      const err = new Error("Unsupported file type. Allowed: JPEG, PNG, WebP") as Error & { status?: number };
+      err.status = 400;
+      cb(err);
       return;
     }
     cb(null, true);
@@ -48,7 +64,7 @@ export const upload = multer({
 export async function saveFile(file: Express.Multer.File): Promise<string> {
   if (STORAGE_DRIVER === "s3") {
     const bucket = process.env.DO_SPACES_BUCKET!;
-    const key = `menus/${uuidv4()}${path.extname(file.originalname)}`;
+    const key = `menus/${uuidv4()}${safeExt(file.mimetype)}`;
     await s3!.send(new PutObjectCommand({
       Bucket: bucket,
       Key: key,
