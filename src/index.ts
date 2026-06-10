@@ -40,7 +40,16 @@ app.use(express.json({
 }));
 
 if (!process.env.STORAGE_DRIVER || process.env.STORAGE_DRIVER === "local") {
-  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+  // helmet defaults CORP to same-origin, which blocks the web app (different
+  // port/origin) from rendering these images. Relax it for static uploads only.
+  app.use(
+    "/uploads",
+    (_req, res, next) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      next();
+    },
+    express.static(path.join(process.cwd(), "uploads")),
+  );
 }
 
 app.use("/api/auth", authRoutes);
