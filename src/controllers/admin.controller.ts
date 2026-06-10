@@ -9,6 +9,7 @@ import { Plan } from "../models/Plan";
 import { PlanFeature } from "../models/PlanFeature";
 import { Subscription, SubscriptionStatus } from "../models/Subscription";
 import { RestaurantFeature } from "../models/RestaurantFeature";
+import { Payment, PaymentStatus, PaymentProviderKey } from "../models/Payment";
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -495,5 +496,39 @@ export async function toggleRestaurantFeature(req: AuthRequest, res: Response) {
     }
   } catch {
     res.status(500).json({ error: "Failed to toggle restaurant feature" });
+  }
+}
+
+// ─── Payments / Transactions ────────────────────────────────────────────────
+
+/**
+ * Admin: paginated transaction ledger. Filter by status / provider.
+ * GET /api/admin/payments?page=1&pageSize=50&status=PAID&provider=TBC
+ */
+export async function listPayments(req: AuthRequest, res: Response) {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(String(req.query.pageSize ?? "50"), 10) || 50));
+
+    const where: Record<string, unknown> = {};
+    const status = String(req.query.status ?? "");
+    if (status && (Object.values(PaymentStatus) as string[]).includes(status)) where.status = status;
+    const provider = String(req.query.provider ?? "");
+    if (provider && (Object.values(PaymentProviderKey) as string[]).includes(provider)) where.provider = provider;
+
+    const { rows, count } = await Payment.findAndCountAll({
+      where,
+      include: [
+        { model: Restaurant, attributes: ["id", "name", "slug"] },
+        { model: Plan, attributes: ["id", "name", "slug"] },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    });
+
+    res.json({ data: rows, total: count, page, pageSize, totalPages: Math.ceil(count / pageSize) });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch payments" });
   }
 }

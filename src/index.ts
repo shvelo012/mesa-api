@@ -20,6 +20,7 @@ import guestRoutes from "./routes/guest.routes";
 import reviewRoutes, { restaurantReviewRouter } from "./routes/review.routes";
 import adminRoutes from "./routes/admin.routes";
 import planRoutes from "./routes/plan.routes";
+import paymentRoutes from "./routes/payment.routes";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -30,7 +31,13 @@ app.use(cors({
   credentials: true,
 }));
 app.use(cookieParser());
-app.use(express.json());
+// Stash the raw body so payment webhooks can verify the bank's signature
+// over the exact bytes received (BOG signs the raw payload).
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    (req as Request & { rawBody?: Buffer }).rawBody = buf;
+  },
+}));
 
 if (!process.env.STORAGE_DRIVER || process.env.STORAGE_DRIVER === "local") {
   app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
@@ -48,6 +55,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/restaurants/:id/reviews", restaurantReviewRouter);
 app.use("/api/admin", adminRoutes);
 app.use("/api/plans", planRoutes);
+app.use("/api/payments", paymentRoutes);
 
 app.get("/health", (_req, res) => res.json({ status: "ok" }));
 

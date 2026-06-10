@@ -21,6 +21,7 @@ import {
   updateSubscription,
   listRestaurantFeatures,
   toggleRestaurantFeature,
+  listPayments,
 } from "../controllers/admin.controller";
 
 const router = Router();
@@ -59,5 +60,8 @@ router.put("/plans/:planId/features", setPlanFeatures);
 router.get("/subscriptions", listSubscriptionsAdmin);
 router.post("/subscriptions", createSubscription);
 router.patch("/subscriptions/:subId", updateSubscription);
+
+// Payments / transaction ledger
+router.get("/payments", listPayments);
 
 export default router;

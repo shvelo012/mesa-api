@@ -20,6 +20,8 @@ import { PlanFeature } from "../models/PlanFeature";
 import { Subscription } from "../models/Subscription";
 import { RestaurantFeature } from "../models/RestaurantFeature";
 import { AuditLog } from "../models/AuditLog";
+import { Payment } from "../models/Payment";
+import { PaymentMethod } from "../models/PaymentMethod";
 
 export const sequelize = new Sequelize({
   dialect: "postgres",
@@ -29,7 +31,7 @@ export const sequelize = new Sequelize({
   username: process.env.DB_USER!,
   password: process.env.DB_PASSWORD!,
   logging: process.env.NODE_ENV === "development" ? console.log : false,
-  models: [User, Restaurant, Floor, TableModel, Wall, Reservation, Menu, MenuPhoto, MenuGroup, MenuItem, RestaurantStaff, Waitlist, GuestNote, Review, Feature, Plan, PlanFeature, Subscription, RestaurantFeature, AuditLog],
+  models: [User, Restaurant, Floor, TableModel, Wall, Reservation, Menu, MenuPhoto, MenuGroup, MenuItem, RestaurantStaff, Waitlist, GuestNote, Review, Feature, Plan, PlanFeature, Subscription, RestaurantFeature, AuditLog, Payment, PaymentMethod],
 });
 
 export async function connectDB() {
