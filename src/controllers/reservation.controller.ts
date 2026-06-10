@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { z } from "zod";
-import { Op } from "sequelize";
+import { Op, Transaction } from "sequelize";
 import { sequelize } from "../lib/database";
 import { Reservation, ReservationStatus } from "../models/Reservation";
 import { TableModel } from "../models/Table";
@@ -549,7 +549,9 @@ export async function updateReservationStatus(req: AuthRequest, res: Response) {
           { model: TableModel, include: [{ model: Floor, where: { restaurantId: restaurant.id } }] },
           { model: User, attributes: ["id", "name", "email"] },
         ],
-        lock: true,
+        // Lock only the reservation row — FOR UPDATE cannot apply to the
+        // nullable side of the outer join to User (guest reservations have no userId).
+        lock: { level: Transaction.LOCK.UPDATE, of: Reservation },
         transaction: t,
       });
       if (!found) throw new NotFoundError("Reservation not found");
